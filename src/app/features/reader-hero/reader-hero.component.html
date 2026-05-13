@@ -1,0 +1,96 @@
+<section #hero class="reader-hero">
+  <div #canvasHost class="reader-canvas" aria-hidden="true"></div>
+
+  <svg #analysisOverlay class="analysis-overlay" aria-hidden="true">
+    <path
+      #connectionLine
+      pathLength="1"
+      fill="none"
+      stroke="rgba(216, 238, 255, 0.88)"
+      stroke-width="2.4"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      vector-effect="non-scaling-stroke"
+      opacity="0"
+    />
+    <circle
+      #confirmationCircle
+      pathLength="1"
+      fill="none"
+      stroke="#74e4b3"
+      stroke-width="4.4"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      vector-effect="non-scaling-stroke"
+      opacity="0"
+    />
+    <path
+      #confirmationCheck
+      pathLength="1"
+      fill="none"
+      stroke="#74e4b3"
+      stroke-width="5.2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      vector-effect="non-scaling-stroke"
+      opacity="0"
+    />
+  </svg>
+
+  <div #deviceStage class="device-stage" aria-hidden="true">
+    <div class="device-copy device-copy-left">
+      <p class="eyebrow" data-copy-row="0">Connected results</p>
+      <h2 data-copy-row="1">Review insights wherever you are.</h2>
+      <p data-copy-row="2">The reader processes the sample, then turns sensor output into a clear result view.</p>
+      <p data-copy-row="3">Your dashboard keeps the same context as you move from desktop to mobile.</p>
+      <p data-copy-row="4">Results can be reviewed at home, shared with a care team, or revisited later.</p>
+      <p data-copy-row="5">Each scan can keep a simple history, so changes over time are easier to understand.</p>
+      <p data-copy-row="6">The interface can highlight what changed, what stayed stable, and what may need follow-up.</p>
+      <p data-copy-row="7">Designed as a proof-of-concept for making sample data feel immediate, readable, and portable.</p>
+    </div>
+
+    <div class="device-shell">
+      <div class="device-screen"></div>
+      <div class="device-stand"></div>
+      <div class="device-keyboard"></div>
+      <div class="device-home"></div>
+    </div>
+
+    <div class="device-copy device-copy-right">
+      <p class="eyebrow" data-copy-row="0">Focused sensors</p>
+      <h2 data-copy-row="1">One reader. Focused sensors.</h2>
+      <p data-copy-row="2">Each sensor is designed for a specific marker, panel, or sample workflow.</p>
+      <p data-copy-row="3">Swap the sensor to change what the reader is looking for.</p>
+      <p data-copy-row="4">The scanner stays familiar while the sensor defines the test path.</p>
+      <p data-copy-row="5">A sensor can carry the chemistry, sample zone, and contact layout for its intended signal.</p>
+      <p data-copy-row="6">The reader provides the shared scan motion, optical path, and result handoff.</p>
+      <p data-copy-row="7">That separation keeps the system flexible while keeping the user experience consistent.</p>
+    </div>
+  </div>
+
+  <div #readerCopy class="reader-copy">
+    <p class="eyebrow">Portable pocket lab concept</p>
+    <h1 class="reader-headline">
+      <span>Explore health signals linked to</span>
+      <span class="phrase-stage" aria-live="polite">
+        @for (phrase of phrases; track phrase) {
+          <span #phrase class="phrase">{{ phrase }}</span>
+        }
+      </span>
+    </h1>
+    <p>
+      A research prototype for exploring measurable sample markers and turning them into
+      clearer, easier-to-read health insights.
+    </p>
+  </div>
+
+  <div #sensorCta class="sensor-cta" aria-hidden="true">
+    <p class="eyebrow">Focused health sensing</p>
+    <h2>Understand more from every sample.</h2>
+    <p>Use focused sensors to check specific health signals, track changes, and keep your results close wherever you are.</p>
+    <a>Explore sensors</a>
+  </div>
+  <div class="progress" aria-hidden="true">
+    <span></span>
+  </div>
+</section>
