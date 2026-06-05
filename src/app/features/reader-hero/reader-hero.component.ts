@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
@@ -50,6 +51,11 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private readonly initialModelRotation = new THREE.Euler(0.26, -0.48, 0);
   private readonly scrollModelPosition = new THREE.Vector3(0.62, -0.08, 0);
   private readonly scrollModelRotation = new THREE.Euler(0.36, -0.08, 0);
+  private readonly cartridgeInsertedX = 1.33;
+  private readonly cartridgePulledX = 2.48;
+  private readonly cartridgeSlotY = 0.24;
+  private readonly cartridgeSlotZ = 0.285;
+  private readonly cartridgeWidthScale = 1.75;
 
   private scene!: THREE.Scene;
   private camera!: THREE.PerspectiveCamera;
@@ -60,9 +66,11 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private phraseTimeline?: gsap.core.Timeline;
   private topRotationRig?: THREE.Group;
   private model?: THREE.Group;
+  private readerFallbackParts: THREE.Object3D[] = [];
   private readerMaterials: THREE.Material[] = [];
   private readerFade = { opacity: 1 };
   private sensorGroup?: THREE.Group;
+  private sensorFallbackParts: THREE.Object3D[] = [];
   private pipetteGroup?: THREE.Group;
   private dropletGroup?: THREE.Group;
   private dropMesh?: THREE.Mesh;
@@ -267,9 +275,141 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.model.add(aperture);
 
     this.sensorGroup = this.createSensorGroup({ white: warmWhite, charcoal, blue });
-    this.sensorGroup.position.set(1.55, -0.04, 0);
+    this.sensorGroup.position.set(this.cartridgeInsertedX, this.cartridgeSlotY, 0);
     this.model.add(this.sensorGroup);
+    this.sensorFallbackParts = [...this.sensorGroup.children];
+    this.setFallbackSensorVisibility(false);
+    this.readerFallbackParts = this.model.children.filter((child) => child !== this.sensorGroup);
+    this.setFallbackReaderVisibility(false);
     this.readerMaterials = this.collectMaterials(this.model);
+    this.loadReaderAsset();
+    this.loadCartridgeAsset();
+  }
+
+  private loadReaderAsset(): void {
+    if (!this.model) return;
+
+    const manager = new THREE.LoadingManager();
+    manager.setURLModifier((url) => {
+      if (url.endsWith('Case%20r12.bin') || url.endsWith('Case r12.bin')) {
+        return '/assets/models/reader/reader.bin';
+      }
+
+      return url;
+    });
+
+    const loader = new GLTFLoader(manager);
+    loader.load(
+      '/assets/models/reader/reader.gltf',
+      (gltf) => {
+        if (!this.model) return;
+
+        const readerAsset = this.prepareReaderAsset(gltf.scene);
+        this.readerFallbackParts.forEach((child) => this.model?.remove(child));
+        this.readerFallbackParts = [];
+        this.model.add(readerAsset);
+        this.readerMaterials = this.collectMaterials(this.model);
+        this.setReaderOpacity(this.readerFade.opacity);
+      },
+      undefined,
+      (error) => {
+        console.error('Unable to load reader model asset', error);
+        this.setFallbackReaderVisibility(true);
+      },
+    );
+  }
+
+  private setFallbackReaderVisibility(isVisible: boolean): void {
+    this.readerFallbackParts.forEach((part) => {
+      part.visible = isVisible;
+    });
+  }
+
+  private prepareReaderAsset(scene: THREE.Group): THREE.Group {
+    const asset = scene;
+    asset.name = 'fusion_reader_model';
+    asset.rotation.set(-Math.PI / 2, 0, -Math.PI / 2);
+    asset.rotateY(Math.PI);
+    asset.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), Math.PI);
+    asset.updateMatrixWorld(true);
+
+    const box = new THREE.Box3().setFromObject(asset);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const longestSide = Math.max(size.x, size.y, size.z);
+    const targetLongestSide = 4.35;
+    const scale = longestSide > 0 ? targetLongestSide / longestSide : 1;
+
+    asset.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+    asset.scale.setScalar(scale);
+    this.prepareAssetMaterials(asset);
+
+    return asset;
+  }
+
+  private prepareAssetMaterials(asset: THREE.Object3D): void {
+    asset.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.castShadow = false;
+      mesh.receiveShadow = false;
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      materials.forEach((material) => {
+        material.depthTest = true;
+        material.depthWrite = true;
+        material.needsUpdate = true;
+      });
+    });
+  }
+
+  private loadCartridgeAsset(): void {
+    if (!this.sensorGroup) return;
+
+    const loader = new GLTFLoader();
+    loader.load(
+      '/assets/models/cartridge/Cartridge Base.gltf',
+      (gltf) => {
+        if (!this.sensorGroup) return;
+
+        const cartridgeAsset = this.prepareCartridgeAsset(gltf.scene);
+        this.sensorFallbackParts.forEach((child) => this.sensorGroup?.remove(child));
+        this.sensorFallbackParts = [];
+        this.sensorGroup.add(cartridgeAsset);
+        this.readerMaterials = this.collectMaterials(this.model ?? this.sensorGroup);
+        this.setReaderOpacity(this.readerFade.opacity);
+      },
+      undefined,
+      (error) => {
+        console.error('Unable to load cartridge model asset', error);
+        this.setFallbackSensorVisibility(true);
+      },
+    );
+  }
+
+  private prepareCartridgeAsset(scene: THREE.Group): THREE.Group {
+    const asset = scene;
+    asset.name = 'fusion_cartridge_model';
+    asset.rotation.set(-Math.PI / 2, 0, 0);
+    asset.updateMatrixWorld(true);
+
+    const box = new THREE.Box3().setFromObject(asset);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const longestSide = Math.max(size.x, size.y, size.z);
+    const targetLongestSide = 1.62;
+    const scale = longestSide > 0 ? targetLongestSide / longestSide : 1;
+
+    asset.position.set(0.55 - center.x * scale, -0.02 - center.y * scale, this.cartridgeSlotZ - center.z * scale);
+    asset.scale.set(scale, scale * this.cartridgeWidthScale, scale);
+    this.prepareAssetMaterials(asset);
+
+    return asset;
+  }
+
+  private setFallbackSensorVisibility(isVisible: boolean): void {
+    this.sensorFallbackParts.forEach((part) => {
+      part.visible = isVisible;
+    });
   }
 
   private buildScrollAnimation(): void {
@@ -373,7 +513,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
         },
         0,
       )
-      .to(this.sensorGroup.position, { x: 2.48, y: -0.04, z: 0, duration: 0.28 }, 0.38)
+      .to(this.sensorGroup.position, { x: this.cartridgePulledX, y: this.cartridgeSlotY, z: 0, duration: 0.28 }, 0.38)
       .to(this.sensorGroup.rotation, { x: 0, y: 0, z: 0, duration: 0.28 }, 0.38)
       .set(pipette ?? {}, { visible: true }, 0.62)
       .to(pipette?.position ?? {}, { y: 0.88, duration: 0.28, ease: 'power2.out' }, 0.62)
@@ -390,7 +530,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       .to(puddle?.scale ?? {}, { x: 0, y: 0, z: 0, duration: 0.08 }, 1.22)
       .set(puddle ?? {}, { visible: false }, 1.32)
       .set(droplet ?? {}, { visible: false }, 1.32)
-      .to(this.sensorGroup.position, { x: 1.55, y: -0.04, z: 0, duration: 0.28 }, 1.34)
+      .to(this.sensorGroup.position, { x: this.cartridgeInsertedX, y: this.cartridgeSlotY, z: 0, duration: 0.28 }, 1.34)
       .to(this.model.rotation, { x: 0.24, y: -0.62, z: 0, duration: 0.24 }, 1.62)
       .to(
         this.topRotationRig.position,
