@@ -49,13 +49,14 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
   private readonly initialModelPosition = new THREE.Vector3(0.7, -0.05, 0);
   private readonly initialModelRotation = new THREE.Euler(0.26, -0.48, 0);
-  private readonly scrollModelPosition = new THREE.Vector3(0.62, -0.08, 0);
+  private readonly scrollModelPosition = new THREE.Vector3(0, -0.08, 0);
   private readonly scrollModelRotation = new THREE.Euler(0.36, -0.08, 0);
   private readonly cartridgeInsertedX = 1.33;
   private readonly cartridgePulledX = 2.48;
   private readonly cartridgeSlotY = 0.24;
   private readonly cartridgeSlotZ = 0.285;
   private readonly cartridgeWidthScale = 1.75;
+  private readonly scrollSpinBackProgress = 0.055;
 
   private scene!: THREE.Scene;
   private camera!: THREE.PerspectiveCamera;
@@ -130,7 +131,6 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.createParticles();
     this.createReaderModel();
     this.createPipetteAndDroplet();
-    this.createDnaModel();
     this.createSensorConstellationScene();
     this.buildScrollAnimation();
     this.setupPhraseAnimation();
@@ -225,9 +225,9 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
     const material = new THREE.PointsMaterial({
       color: '#f7efe2',
-      size: 0.012,
+      size: 0.014,
       transparent: true,
-      opacity: 0.58,
+      opacity: 0.74,
       depthWrite: false,
     });
 
@@ -249,11 +249,12 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.topRotationRig = new THREE.Group();
     this.topRotationRig.name = 'top_interaction_rotation_rig';
     this.topRotationRig.position.copy(this.getInitialModelPosition());
+    this.topRotationRig.scale.setScalar(this.getInitialModelScale());
     this.scene.add(this.topRotationRig);
 
     this.model = new THREE.Group();
     this.model.name = 'reader_model';
-    this.model.rotation.copy(this.initialModelRotation);
+    this.model.rotation.copy(this.getInitialModelRotation());
     this.topRotationRig.add(this.model);
 
     this.model.add(this.roundedBox('reader_body_shell', [4.35, 0.72, 1.28], [0, 0, 0], shell, 0.33));
@@ -435,6 +436,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     const drop = this.dropMesh;
     const puddle = this.puddleMesh;
     const readerCopy = this.readerCopy.nativeElement;
+    const readerCopyText = Array.from(readerCopy.children);
     const deviceStage = this.deviceStage.nativeElement;
     const sensorCta = this.sensorCta.nativeElement;
     const deviceCopy = deviceStage.querySelectorAll('.device-copy');
@@ -486,6 +488,8 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     gsap.set(deviceCopy, { autoAlpha: 1, filter: 'blur(0px)', y: '-10vh' });
     gsap.set(deviceCopyItems, { autoAlpha: 0, filter: 'blur(12px)', y: 18 });
     gsap.set(sensorCta, { autoAlpha: 0, filter: 'blur(18px)', y: 20 });
+    gsap.set(readerCopy, { autoAlpha: 1, filter: 'none', x: 0, y: 0 });
+    gsap.set(readerCopyText, { autoAlpha: 1, filter: 'blur(0px)' });
     this.sensorFieldIsOpaque = false;
     this.readerFade.opacity = 1;
     this.setReaderOpacity(1);
@@ -502,115 +506,81 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.setMaterialsOpacity(this.sensorFieldMaterials, 0);
     this.updateAnalysisOverlay();
 
-    tl.to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getScrollModelPosition(), 0.34), 0)
+    tl.to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getSensorSequenceModelPosition(), 0.34), 0)
       .to(
         this.model.rotation,
         {
-          x: this.scrollModelRotation.x,
-          y: this.scrollModelRotation.y,
-          z: this.scrollModelRotation.z,
+          x: () => this.getSensorSequenceModelRotation().x,
+          y: () => this.getSensorSequenceModelRotation().y,
+          z: () => this.getSensorSequenceModelRotation().z,
           duration: 0.34,
         },
         0,
       )
-      .to(this.sensorGroup.position, { x: this.cartridgePulledX, y: this.cartridgeSlotY, z: 0, duration: 0.28 }, 0.38)
-      .to(this.sensorGroup.rotation, { x: 0, y: 0, z: 0, duration: 0.28 }, 0.38)
-      .set(pipette ?? {}, { visible: true }, 0.62)
-      .to(pipette?.position ?? {}, { y: 0.88, duration: 0.28, ease: 'power2.out' }, 0.62)
-      .set(droplet ?? {}, { visible: true }, 0.92)
-      .set(drop ?? {}, { visible: true }, 0.92)
-      .to(drop?.scale ?? {}, { x: 0.68, y: 0.68, z: 0.68, duration: 0.04 }, 0.92)
-      .to(drop?.position ?? {}, { y: 0.055, duration: 0.18, ease: 'power1.in' }, 0.94)
-      .set(puddle ?? {}, { visible: true }, 1.04)
-      .to(drop?.scale ?? {}, { x: 0.24, y: 0.18, z: 0.24, duration: 0.07 }, 1.05)
-      .to(puddle?.scale ?? {}, { x: 1, y: 1, z: 1, duration: 0.1 }, 1.05)
-      .set(drop ?? {}, { visible: false }, 1.11)
-      .to(pipette?.position ?? {}, { y: 3.6, duration: 0.22, ease: 'power2.in' }, 1.14)
-      .set(pipette ?? {}, { visible: false }, 1.36)
-      .to(puddle?.scale ?? {}, { x: 0, y: 0, z: 0, duration: 0.08 }, 1.22)
-      .set(puddle ?? {}, { visible: false }, 1.32)
-      .set(droplet ?? {}, { visible: false }, 1.32)
-      .to(this.sensorGroup.position, { x: this.cartridgeInsertedX, y: this.cartridgeSlotY, z: 0, duration: 0.28 }, 1.34)
-      .to(this.model.rotation, { x: 0.24, y: -0.62, z: 0, duration: 0.24 }, 1.62)
       .to(
-        this.topRotationRig.position,
-        this.vectorTweenDynamic(() => this.getAnalysisModelPosition(), 0.56),
+        this.topRotationRig.scale,
+        {
+          x: () => this.getSensorSequenceModelScale(),
+          y: () => this.getSensorSequenceModelScale(),
+          z: () => this.getSensorSequenceModelScale(),
+          duration: 0.34,
+        },
+        0,
+      )
+      .to(
+        readerCopy,
+        {
+          x: () => (this.isMobileLayout() ? '0vw' : '-38vw'),
+          y: () => (this.isMobileLayout() ? '-31dvh' : '0vh'),
+          duration: 0.34,
+          ease: 'power2.in',
+        },
+        0,
+      )
+      .to(readerCopyText, { autoAlpha: 0, filter: 'blur(10px)', duration: 0.34, ease: 'power2.in' }, 0)
+      .to(this.sensorGroup.position, { x: this.cartridgePulledX, y: this.cartridgeSlotY, z: 0, duration: 0.28 }, 0.62)
+      .to(this.sensorGroup.rotation, { x: 0, y: 0, z: 0, duration: 0.28 }, 0.62)
+      .set(pipette ?? {}, { visible: true }, 0.86)
+      .to(pipette?.position ?? {}, { y: 0.88, duration: 0.28, ease: 'power2.out' }, 0.86)
+      .set(droplet ?? {}, { visible: true }, 1.16)
+      .set(drop ?? {}, { visible: true }, 1.16)
+      .to(drop?.scale ?? {}, { x: 0.68, y: 0.68, z: 0.68, duration: 0.04 }, 1.16)
+      .to(drop?.position ?? {}, { y: 0.055, duration: 0.18, ease: 'power1.in' }, 1.18)
+      .set(puddle ?? {}, { visible: true }, 1.28)
+      .to(drop?.scale ?? {}, { x: 0.24, y: 0.18, z: 0.24, duration: 0.07 }, 1.29)
+      .to(puddle?.scale ?? {}, { x: 1, y: 1, z: 1, duration: 0.1 }, 1.29)
+      .set(drop ?? {}, { visible: false }, 1.35)
+      .to(pipette?.position ?? {}, { y: 3.6, duration: 0.22, ease: 'power2.in' }, 1.38)
+      .set(pipette ?? {}, { visible: false }, 1.6)
+      .to(puddle?.scale ?? {}, { x: 0, y: 0, z: 0, duration: 0.08 }, 1.46)
+      .set(puddle ?? {}, { visible: false }, 1.56)
+      .set(droplet ?? {}, { visible: false }, 1.56)
+      .to(this.sensorGroup.position, { x: this.cartridgeInsertedX, y: this.cartridgeSlotY, z: 0, duration: 0.28 }, 1.58)
+      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getPostSensorModelPosition(), 0.58), 1.86)
+      .to(this.topRotationRig.rotation, { x: 0, y: 0, z: 0, duration: 0.58, ease: 'power2.inOut' }, 1.86)
+      .to(
+        this.model.rotation,
+        {
+          x: () => this.getInitialModelRotation().x,
+          y: () => this.getInitialModelRotation().y,
+          z: () => this.getInitialModelRotation().z,
+          duration: 0.58,
+          ease: 'power2.inOut',
+        },
         1.86,
       )
       .to(
         this.topRotationRig.scale,
         {
-          x: () => this.getAnalysisModelScale(),
-          y: () => this.getAnalysisModelScale(),
-          z: () => this.getAnalysisModelScale(),
-          duration: 0.56,
+          x: () => this.getPostSensorModelScale(),
+          y: () => this.getPostSensorModelScale(),
+          z: () => this.getPostSensorModelScale(),
+          duration: 0.58,
           ease: 'power2.inOut',
         },
         1.86,
       )
-      .to(
-        this.model.rotation,
-        { x: Math.PI / 2, y: -Math.PI / 2, z: 0, duration: 0.56, ease: 'power2.inOut' },
-        1.86,
-      )
-      .to(this.sensorGroup.rotation, { x: 0, y: 0, z: 0, duration: 0.56, ease: 'power2.inOut' }, 1.86)
-      .to(readerCopy, { x: '-38vw', autoAlpha: 0, filter: 'blur(18px)', duration: 0.42, ease: 'power2.in' }, 1.92)
-      .to(
-        this.dnaMaterials,
-        {
-          opacity: 1,
-          duration: 1.22,
-          ease: 'none',
-        },
-        2.5,
-      )
-      .to(this.dnaReveal, { blur: 0, duration: 1.22, ease: 'none' }, 2.5)
-      .call(() => {
-        this.isDnaSpinning = true;
-      }, undefined, 3.78)
-      .to(this.confirmation, { opacity: 1, duration: 0.08, ease: 'none' }, 3.88)
-      .to(
-        this.confirmation,
-        {
-          line: 1,
-          circle: 1,
-          check: 1,
-          duration: 0.48,
-          ease: 'power2.inOut',
-        },
-        3.88,
-      )
-      .call(() => {
-        this.isDnaSpinning = false;
-      }, undefined, 4.42)
-      .to(this.confirmation, { opacity: 0, duration: 0.28, ease: 'power2.inOut' }, 4.42)
-      .to(this.dnaMaterials, { opacity: 0, duration: 0.36, ease: 'power2.inOut' }, 4.42)
-      .to(this.dnaReveal, { blur: 18, duration: 0.36, ease: 'power2.inOut' }, 4.42)
-      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getDeviceModelPosition('desktop'), 0.58), 4.42)
-      .to(this.topRotationRig.rotation, { x: 0, y: 0, z: 0, duration: 0.58, ease: 'power2.inOut' }, 4.42)
-      .to(
-        this.model.rotation,
-        {
-          x: this.initialModelRotation.x,
-          y: this.initialModelRotation.y,
-          z: this.initialModelRotation.z,
-          duration: 0.58,
-          ease: 'power2.inOut',
-        },
-        4.42,
-      )
-      .to(
-        this.topRotationRig.scale,
-        {
-          x: () => this.getDeviceModelScale('desktop'),
-          y: () => this.getDeviceModelScale('desktop'),
-          z: () => this.getDeviceModelScale('desktop'),
-          duration: 0.58,
-          ease: 'power2.inOut',
-        },
-        4.42,
-      )
-      .to(deviceStage, { autoAlpha: 1, duration: 0.28, ease: 'power2.out' }, 4.86)
+      .to(deviceStage, { autoAlpha: 1, duration: 0.28, ease: 'power2.out' }, 2.3)
       .to(
         deviceCopyItems,
         {
@@ -621,7 +591,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           stagger: (index: number) => Math.floor(index / 2) * 0.28,
           ease: 'power2.out',
         },
-        5.02,
+        2.46,
       )
       .to(
         deviceStage,
@@ -637,7 +607,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           duration: 0.4,
           ease: 'power2.out',
         },
-        4.86,
+        2.3,
       )
       .to(
         deviceStage,
@@ -1704,6 +1674,13 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       duration: 0.75,
       ease: 'power3.out',
     });
+    gsap.to(this.topRotationRig.scale, {
+      x: this.getInitialModelScale(),
+      y: this.getInitialModelScale(),
+      z: this.getInitialModelScale(),
+      duration: 0.75,
+      ease: 'power3.out',
+    });
   }
 
   private trySelectSensorFieldItem(event: PointerEvent): void {
@@ -1776,7 +1753,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private syncScrollHandoffRotation(progress: number): void {
     if (!this.topRotationRig) return;
 
-    if (progress <= 0.001) {
+    if (progress <= 0.00001) {
       this.scrollStartRigRotation = undefined;
       this.scrollHandoff.x = 0;
       this.scrollHandoff.y = 0;
@@ -1799,8 +1776,8 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
     if (this.isTopInteractive) return;
 
-    const settleProgress = THREE.MathUtils.clamp(progress / 0.34, 0, 1);
-    const remaining = 1 - gsap.parseEase('power2.out')(settleProgress);
+    const settleProgress = THREE.MathUtils.clamp(progress / this.scrollSpinBackProgress, 0, 1);
+    const remaining = 1 - settleProgress;
     this.scrollHandoff.x = this.scrollStartRigRotation.x * remaining;
     this.scrollHandoff.y = this.scrollStartRigRotation.y * remaining;
     this.scrollHandoff.z = this.scrollStartRigRotation.z * remaining;
@@ -1812,7 +1789,8 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
     const start = this.scrollTriggerInstance.start;
     const end = this.scrollTriggerInstance.end;
-    this.scrollProgressTarget = end > start ? THREE.MathUtils.clamp((window.scrollY - start) / (end - start), 0, 1) : 0;
+    this.scrollProgressTarget =
+      window.scrollY <= 2 ? 0 : end > start ? THREE.MathUtils.clamp((window.scrollY - start) / (end - start), 0, 1) : 0;
 
     const distance = this.scrollProgressTarget - this.scrollProgressCurrent;
     const smoothing = Math.abs(distance) > 0.08 ? 0.2 : 0.115;
@@ -1826,7 +1804,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.scrollTimeline.progress(visualProgress);
     this.hero.nativeElement.style.setProperty('--scroll-progress', visualProgress.toFixed(4));
 
-    if (this.scrollProgressTarget > 0.001) {
+    if (visualProgress > 0.0008) {
       this.disableTopInteraction();
     } else {
       this.enableTopInteraction();
@@ -1846,8 +1824,13 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.camera.updateProjectionMatrix();
     this.renderer.setPixelRatio(this.getRenderPixelRatio());
     this.renderer.setSize(viewport.width, viewport.height, false);
+    this.scrollTimeline?.invalidate();
     if (this.topRotationRig && window.scrollY <= 2) {
       this.topRotationRig.position.copy(this.getInitialModelPosition());
+      this.topRotationRig.scale.setScalar(this.getInitialModelScale());
+    }
+    if (this.model && window.scrollY <= 2) {
+      this.model.rotation.copy(this.getInitialModelRotation());
     }
     if (this.dnaGroup) {
       this.dnaGroup.position.copy(this.getDnaModelPosition());
@@ -1856,6 +1839,8 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.resizeRefreshId = window.setTimeout(() => {
       ScrollTrigger.refresh(true);
       ScrollTrigger.update();
+      this.scrollTimeline?.invalidate();
+      this.syncScrollTimelineWithNativeScroll();
     }, 120);
   }
 
@@ -1872,18 +1857,96 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
   private getInitialModelPosition(): THREE.Vector3 {
     const width = this.getViewportSize().width;
+    const portraitProgress = this.getPortraitProgress();
+
+    if (portraitProgress > 0) {
+      return new THREE.Vector3(0, -0.2, 0);
+    }
+
     if (width < 760) return new THREE.Vector3(1.55, -0.18, 0);
-    if (width < 1100) return new THREE.Vector3(1.42, -0.12, 0);
+    if (width < 1100) return new THREE.Vector3(0.82, -0.12, 0);
     if (width < 1400) return new THREE.Vector3(1.05, -0.08, 0);
     return this.initialModelPosition;
   }
 
-  private getScrollModelPosition(): THREE.Vector3 {
+  private getSensorSequenceModelPosition(): THREE.Vector3 {
     const width = this.getViewportSize().width;
-    if (width < 760) return new THREE.Vector3(1.22, -0.14, 0);
-    if (width < 1100) return new THREE.Vector3(1.2, -0.12, 0);
-    if (width < 1400) return new THREE.Vector3(0.9, -0.1, 0);
+    const portraitProgress = this.getPortraitProgress();
+
+    if (portraitProgress > 0) {
+      return new THREE.Vector3(
+        THREE.MathUtils.lerp(-0.12, -1.72, portraitProgress),
+        THREE.MathUtils.lerp(-0.14, -0.58, portraitProgress),
+        0,
+      );
+    }
+
+    if (width < 760) return new THREE.Vector3(0.08, -0.14, 0);
+    if (width < 1100) return new THREE.Vector3(0.06, -0.12, 0);
+    if (width < 1400) return new THREE.Vector3(0.04, -0.1, 0);
     return this.scrollModelPosition;
+  }
+
+  private getScrollModelPosition(): THREE.Vector3 {
+    return this.getSensorSequenceModelPosition();
+  }
+
+  private getInitialModelScale(): number {
+    const width = this.getViewportSize().width;
+
+    if (width > 768) return 1;
+    if (width >= 568) return THREE.MathUtils.lerp(0.76, 0.92, (768 - width) / 200);
+    if (width >= 400) return THREE.MathUtils.lerp(0.92, 0.98, (568 - width) / 168);
+    return 1;
+  }
+
+  private getSensorSequenceModelScale(): number {
+    return 1;
+  }
+
+  private getPostSensorModelPosition(): THREE.Vector3 {
+    return this.isMobileLayout() ? this.getInitialModelPosition() : this.getDeviceModelPosition('desktop');
+  }
+
+  private getPostSensorModelScale(): number {
+    return this.isMobileLayout() ? this.getInitialModelScale() : this.getDeviceModelScale('desktop');
+  }
+
+  private getInitialModelRotation(): THREE.Euler {
+    const portraitProgress = this.getPortraitProgress();
+
+    if (portraitProgress <= 0) return this.initialModelRotation;
+
+    return new THREE.Euler(
+      THREE.MathUtils.lerp(this.initialModelRotation.x, 0.42, portraitProgress),
+      THREE.MathUtils.lerp(this.initialModelRotation.y, -0.22, portraitProgress),
+      THREE.MathUtils.lerp(this.initialModelRotation.z, -1.08, portraitProgress),
+    );
+  }
+
+  private getSensorSequenceModelRotation(): THREE.Euler {
+    const portraitProgress = this.getPortraitProgress();
+
+    if (portraitProgress <= 0) return this.scrollModelRotation;
+
+    return new THREE.Euler(
+      THREE.MathUtils.lerp(this.scrollModelRotation.x, 0.34, portraitProgress),
+      THREE.MathUtils.lerp(this.scrollModelRotation.y, -0.1, portraitProgress),
+      THREE.MathUtils.lerp(this.scrollModelRotation.z, 0.04, portraitProgress),
+    );
+  }
+
+  private getScrollModelRotation(): THREE.Euler {
+    return this.getSensorSequenceModelRotation();
+  }
+
+  private getPortraitProgress(): number {
+    const width = this.getViewportSize().width;
+    return THREE.MathUtils.clamp((768 - width) / 368, 0, 1);
+  }
+
+  private isMobileLayout(): boolean {
+    return this.getViewportSize().width <= 768;
   }
 
   private getAnalysisModelPosition(): THREE.Vector3 {
