@@ -70,6 +70,8 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private readerFallbackParts: THREE.Object3D[] = [];
   private readerMaterials: THREE.Material[] = [];
   private readerFade = { opacity: 1 };
+  private readerBlendPlane?: THREE.Mesh;
+  private readerBlendMaterial?: THREE.MeshBasicMaterial;
   private sensorGroup?: THREE.Group;
   private sensorFallbackParts: THREE.Object3D[] = [];
   private pipetteGroup?: THREE.Group;
@@ -103,10 +105,14 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private sensorFieldIsOpaque = false;
   private scrollProgressCurrent = 0;
   private scrollProgressTarget = 0;
+  private readonly scrollFollowStrength = 0.22;
+  private readonly scrollSnapThreshold = 0.00028;
+  private readonly scrollMaxLag = 0.032;
   private scrollHandoff = { x: 0, y: 0, z: 0 };
   private isPointerDown = false;
   private isTopInteractive = true;
   private resizeRefreshId = 0;
+  private initialScrollResetId = 0;
   private resizeObserver?: ResizeObserver;
   private pointerStart = new THREE.Vector2();
   private dragStartRotation = new THREE.Euler();
@@ -114,8 +120,8 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private raycaster = new THREE.Raycaster();
   private selectedFieldSensor?: THREE.Group;
   private resizeHandler = () => this.onResize();
-  private viewportResizeHandler = () => this.onResize();
   private scrollHandler = () => this.syncInteractionMode();
+  private pageShowHandler = () => this.resetScrollPosition();
   private pointerDownHandler = (event: PointerEvent) => this.onPointerDown(event);
   private pointerMoveHandler = (event: PointerEvent) => this.onPointerMove(event);
   private pointerUpHandler = () => this.onPointerUp();
@@ -124,7 +130,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     if ('scrollRestoration' in window.history) {
       window.history.scrollRestoration = 'manual';
     }
-    window.scrollTo(0, 0);
+    this.resetScrollPosition();
     ScrollTrigger.normalizeScroll(true);
 
     this.initScene();
@@ -135,8 +141,8 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.buildScrollAnimation();
     this.setupPhraseAnimation();
     this.animate();
+    window.addEventListener('pageshow', this.pageShowHandler);
     window.addEventListener('resize', this.resizeHandler);
-    window.visualViewport?.addEventListener('resize', this.viewportResizeHandler);
     window.addEventListener('scroll', this.scrollHandler, { passive: true });
     this.renderer.domElement.addEventListener('pointerdown', this.pointerDownHandler);
     window.addEventListener('pointermove', this.pointerMoveHandler);
@@ -146,19 +152,21 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.resizeObserver.observe(this.hero.nativeElement);
     this.resizeObserver.observe(this.canvasHost.nativeElement);
     requestAnimationFrame(() => {
-      window.scrollTo(0, 0);
+      this.resetScrollPosition();
       this.onResize();
       this.syncInteractionMode();
       ScrollTrigger.refresh();
     });
+    this.initialScrollResetId = window.setTimeout(() => this.resetScrollPosition(), 90);
   }
 
   ngOnDestroy(): void {
     cancelAnimationFrame(this.frameId);
     window.clearTimeout(this.resizeRefreshId);
+    window.clearTimeout(this.initialScrollResetId);
     this.resizeObserver?.disconnect();
+    window.removeEventListener('pageshow', this.pageShowHandler);
     window.removeEventListener('resize', this.resizeHandler);
-    window.visualViewport?.removeEventListener('resize', this.viewportResizeHandler);
     window.removeEventListener('scroll', this.scrollHandler);
     this.renderer?.domElement.removeEventListener('pointerdown', this.pointerDownHandler);
     window.removeEventListener('pointermove', this.pointerMoveHandler);
@@ -168,6 +176,20 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.phraseTimeline?.kill();
     ScrollTrigger.normalizeScroll(false);
     this.renderer?.dispose();
+  }
+
+  private resetScrollPosition(): void {
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
+    }
+
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    this.scrollProgressCurrent = 0;
+    this.scrollProgressTarget = 0;
+    this.scrollTimeline?.progress(0);
+    this.hero?.nativeElement.style.setProperty('--scroll-progress', '0');
   }
 
   private initScene(): void {
@@ -256,6 +278,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.model.name = 'reader_model';
     this.model.rotation.copy(this.getInitialModelRotation());
     this.topRotationRig.add(this.model);
+    this.createReaderBlendPlane();
 
     this.model.add(this.roundedBox('reader_body_shell', [4.35, 0.72, 1.28], [0, 0, 0], shell, 0.33));
     this.model.add(this.roundedBox('reader_top_gray_panel', [2.25, 0.08, 1.02], [-0.54, 0.38, 0], gray, 0.23));
@@ -287,13 +310,32 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.loadCartridgeAsset();
   }
 
+  private createReaderBlendPlane(): void {
+    if (!this.topRotationRig) return;
+
+    this.readerBlendMaterial = new THREE.MeshBasicMaterial({
+      color: '#050507',
+      transparent: true,
+      opacity: 0,
+      depthTest: false,
+      depthWrite: false,
+    });
+
+    this.readerBlendPlane = new THREE.Mesh(new THREE.PlaneGeometry(5.4, 5.4), this.readerBlendMaterial);
+    this.readerBlendPlane.name = 'reader_blend_to_background_plane';
+    this.readerBlendPlane.position.set(0, 0, 1.2);
+    this.readerBlendPlane.renderOrder = 40;
+    this.readerBlendPlane.visible = false;
+    this.topRotationRig.add(this.readerBlendPlane);
+  }
+
   private loadReaderAsset(): void {
     if (!this.model) return;
 
     const manager = new THREE.LoadingManager();
     manager.setURLModifier((url) => {
       if (url.endsWith('Case%20r12.bin') || url.endsWith('Case r12.bin')) {
-        return '/assets/models/reader/reader.bin';
+        return this.getAssetUrl('assets/models/reader/reader.bin');
       }
 
       return url;
@@ -301,7 +343,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
     const loader = new GLTFLoader(manager);
     loader.load(
-      '/assets/models/reader/reader.gltf',
+      this.getAssetUrl('assets/models/reader/reader.gltf'),
       (gltf) => {
         if (!this.model) return;
 
@@ -368,7 +410,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
     const loader = new GLTFLoader();
     loader.load(
-      '/assets/models/cartridge/Cartridge Base.gltf',
+      this.getAssetUrl('assets/models/cartridge/Cartridge Base.gltf'),
       (gltf) => {
         if (!this.sensorGroup) return;
 
@@ -411,6 +453,10 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.sensorFallbackParts.forEach((part) => {
       part.visible = isVisible;
     });
+  }
+
+  private getAssetUrl(path: string): string {
+    return new URL(path, document.baseURI).toString();
   }
 
   private buildScrollAnimation(): void {
@@ -471,6 +517,11 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.sensorStarMotion.fall = 0;
     this.sensorFieldReveal.progress = 0;
     gsap.set(this.topRotationRig, { visible: true });
+    gsap.set(this.model, { visible: true });
+    gsap.set(this.readerBlendPlane ?? {}, { visible: false });
+    if (this.readerBlendMaterial) {
+      gsap.set(this.readerBlendMaterial, { opacity: 0 });
+    }
     this.isDnaSpinning = false;
     this.isDnaSolid = false;
     this.setDnaOpacity(0);
@@ -731,20 +782,15 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       .to(dna?.position ?? {}, this.vectorTweenDynamic(() => this.getDeviceDnaPosition('phone'), 0.75), 6.86)
       .to(this, { dnaDisplayScale: () => this.getDeviceDnaScale('phone'), duration: 0.75, ease: 'power2.inOut' }, 6.86)
       .to(deviceStage, { autoAlpha: 0, filter: 'blur(18px)', duration: 0.44, ease: 'power2.in' }, 7.7)
-      .to(
-        this.readerFade,
-        {
-          opacity: 0,
-          duration: 0.5,
-          ease: 'power2.inOut',
-          onUpdate: () => this.setReaderOpacity(this.readerFade.opacity),
-          onComplete: () => this.setReaderOpacity(0),
-          onReverseComplete: () => this.setReaderOpacity(1),
-        },
-        7.7,
-      )
-      .to(this.topRotationRig.scale, { x: 0.1, y: 0.1, z: 0.1, duration: 0.5, ease: 'power2.in' }, 7.7)
-      .set(this.topRotationRig, { visible: false }, 8.22)
+      .call(() => this.setReaderOpacity(1), undefined, 7.7)
+      .set(this.readerBlendPlane ?? {}, { visible: true }, 7.7)
+      .to(this.readerBlendMaterial ?? {}, { opacity: 1, duration: 0.18, ease: 'power2.in' }, 7.7)
+      .to(this.topRotationRig.scale, { x: 0.08, y: 0.08, z: 0.08, duration: 0.28, ease: 'power3.in' }, 7.78)
+      .set(this.model ?? {}, { visible: false }, 7.98)
+      .to(this.readerBlendMaterial ?? {}, { opacity: 0, duration: 0.22, ease: 'power2.out' }, 7.98)
+      .set(this.topRotationRig, { visible: false }, 8.2)
+      .set(this.readerBlendPlane ?? {}, { visible: false }, 8.2)
+      .set(this.readerBlendMaterial ?? {}, { opacity: 0 }, 8.2)
       .to(dustMaterial ?? {}, { opacity: 0.88, size: 0.018, duration: 0.5, ease: 'power2.out' }, 7.86)
       .to(
         this.sensorConstellationMaterial ?? {},
@@ -1792,15 +1838,21 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.scrollProgressTarget =
       window.scrollY <= 2 ? 0 : end > start ? THREE.MathUtils.clamp((window.scrollY - start) / (end - start), 0, 1) : 0;
 
-    const distance = this.scrollProgressTarget - this.scrollProgressCurrent;
-    const smoothing = Math.abs(distance) > 0.08 ? 0.2 : 0.115;
-    this.scrollProgressCurrent += distance * smoothing;
+    const progressDelta = this.scrollProgressTarget - this.scrollProgressCurrent;
+    const isNearStart = this.scrollProgressTarget <= 0.00001 && this.scrollProgressCurrent <= 0.006;
+    const isNearEnd = this.scrollProgressTarget >= 0.99999 && this.scrollProgressCurrent >= 0.994;
 
-    if (Math.abs(distance) < 0.00008) {
+    if (isNearStart || isNearEnd || Math.abs(progressDelta) <= this.scrollSnapThreshold) {
       this.scrollProgressCurrent = this.scrollProgressTarget;
+    } else {
+      const limitedTarget =
+        Math.abs(progressDelta) > this.scrollMaxLag
+          ? this.scrollProgressCurrent + Math.sign(progressDelta) * this.scrollMaxLag
+          : this.scrollProgressTarget;
+      this.scrollProgressCurrent += (limitedTarget - this.scrollProgressCurrent) * this.scrollFollowStrength;
     }
 
-    const visualProgress = THREE.MathUtils.clamp(this.scrollProgressCurrent, 0, 1);
+    const visualProgress = this.scrollProgressCurrent;
     this.scrollTimeline.progress(visualProgress);
     this.hero.nativeElement.style.setProperty('--scroll-progress', visualProgress.toFixed(4));
 

@@ -191,7 +191,6 @@
   --headline-size: clamp(2.55rem, min(5.7vw, 11dvh), 5.45rem);
   --eyebrow-size: clamp(0.7rem, calc(var(--headline-size) * 0.14), 1.2rem);
   --body-size: clamp(0.84rem, calc(var(--headline-size) * 0.21), 1.14rem);
-  --copy-shadow: 1rem;
   position: relative;
   z-index: 3;
   box-sizing: border-box;
@@ -209,12 +208,21 @@
 
 .reader-copy::before {
   position: absolute;
-  inset: 0;
+  top: 0;
+  bottom: 0;
+  left: 0;
   z-index: -1;
+  width: 100vw;
   content: "";
-  background: rgba(5, 5, 7, 0.72);
+  background: linear-gradient(
+    90deg,
+    rgba(5, 5, 7, 0.74) 0%,
+    rgba(5, 5, 7, 0.64) 28%,
+    rgba(5, 5, 7, 0.34) 48%,
+    transparent 70%
+  );
   border-radius: 0;
-  box-shadow: var(--copy-shadow) 0 var(--copy-shadow) rgba(5, 5, 7, 0.5);
+  box-shadow: none;
 }
 
 .reader-copy::after {
@@ -227,6 +235,7 @@
   color: rgba(247, 239, 226, 0.72);
   font-size: var(--eyebrow-size);
   letter-spacing: 0.18em;
+  text-shadow: 0 0.12em 0.45em rgba(0, 0, 0, 0.42);
   text-transform: uppercase;
 }
 
@@ -240,6 +249,9 @@
   font-weight: 760;
   line-height: 1.08;
   letter-spacing: 0;
+  text-shadow:
+    0 0.03em 0.12em rgba(0, 0, 0, 0.48),
+    0 0.12em 0.38em rgba(0, 0, 0, 0.26);
 }
 
 .phrase-stage {
@@ -274,6 +286,7 @@
   color: rgba(247, 239, 226, 0.78);
   font-size: var(--body-size);
   line-height: 1.55;
+  text-shadow: 0 0.12em 0.45em rgba(0, 0, 0, 0.46);
 }
 
 .sensor-cta {
@@ -422,9 +435,16 @@
 
   .reader-copy::before {
     inset: 0;
-    background: rgba(5, 5, 7, 0.76);
+    width: auto;
+    background: linear-gradient(
+      180deg,
+      rgba(5, 5, 7, 0.78) 0%,
+      rgba(5, 5, 7, 0.66) 48%,
+      rgba(5, 5, 7, 0.3) 78%,
+      transparent 100%
+    );
     border-radius: 0;
-    box-shadow: 0 var(--copy-shadow) var(--copy-shadow) rgba(5, 5, 7, 0.5);
+    box-shadow: none;
     mask-image: none;
   }
 
