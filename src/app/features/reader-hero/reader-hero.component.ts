@@ -10,6 +10,7 @@ import {
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
@@ -57,6 +58,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private readonly cartridgeSlotZ = 0.285;
   private readonly cartridgeWidthScale = 1.75;
   private readonly scrollSpinBackProgress = 0.055;
+  private readonly centerSensorDisplayRotation = new THREE.Euler(Math.PI / 2 - 0.4, 0.5, 0);
 
   private scene!: THREE.Scene;
   private camera!: THREE.PerspectiveCamera;
@@ -72,6 +74,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private readerFade = { opacity: 1 };
   private readerBlendPlane?: THREE.Mesh;
   private readerBlendMaterial?: THREE.MeshBasicMaterial;
+  private optimizedCartridgeTemplate?: THREE.Group;
   private sensorGroup?: THREE.Group;
   private sensorFallbackParts: THREE.Object3D[] = [];
   private pipetteGroup?: THREE.Group;
@@ -93,6 +96,14 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private sensorStarTargetPositions?: Float32Array;
   private sensorStarFallPositions?: Float32Array;
   private sensorStarMotion = { progress: 0, fall: 0 };
+  private centerSensorReveal = { opacity: 0 };
+  private sensorMessage?: THREE.Points;
+  private sensorMessageGeometry?: THREE.BufferGeometry;
+  private sensorMessageMaterial?: THREE.PointsMaterial;
+  private sensorMessageTextMaterial?: THREE.MeshBasicMaterial;
+  private sensorMessageStartPositions?: Float32Array;
+  private sensorMessageTargetPositions?: Float32Array;
+  private sensorMessageMotion = { progress: 0 };
   private sensorFieldReveal = { progress: 0 };
   private sensorFillCard?: THREE.Mesh;
   private sensorFillMaterial?: THREE.MeshStandardMaterial;
@@ -101,6 +112,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private sensorField?: THREE.Group;
   private sensorFieldItems: THREE.Group[] = [];
   private sensorFieldMaterialGroups: THREE.Material[][] = [];
+  private sensorFieldRevealStarts: number[] = [];
   private sensorFieldMaterials: THREE.Material[] = [];
   private sensorFieldIsOpaque = false;
   private scrollProgressCurrent = 0;
@@ -138,6 +150,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.createReaderModel();
     this.createPipetteAndDroplet();
     this.createSensorConstellationScene();
+    this.createSensorMessageScene();
     this.buildScrollAnimation();
     this.setupPhraseAnimation();
     this.animate();
@@ -418,6 +431,9 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
         this.sensorFallbackParts.forEach((child) => this.sensorGroup?.remove(child));
         this.sensorFallbackParts = [];
         this.sensorGroup.add(cartridgeAsset);
+        this.optimizedCartridgeTemplate = this.createOptimizedCartridgeTemplate(cartridgeAsset);
+        this.refreshStandaloneSensorsFromTemplate();
+        this.updateSensorStarTargetsFromTemplate();
         this.readerMaterials = this.collectMaterials(this.model ?? this.sensorGroup);
         this.setReaderOpacity(this.readerFade.opacity);
       },
@@ -515,6 +531,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.confirmation.opacity = 0;
     this.sensorStarMotion.progress = 0;
     this.sensorStarMotion.fall = 0;
+    this.sensorMessageMotion.progress = 0;
     this.sensorFieldReveal.progress = 0;
     gsap.set(this.topRotationRig, { visible: true });
     gsap.set(this.model, { visible: true });
@@ -538,20 +555,27 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     });
     gsap.set(deviceCopy, { autoAlpha: 1, filter: 'blur(0px)', y: '-10vh' });
     gsap.set(deviceCopyItems, { autoAlpha: 0, filter: 'blur(12px)', y: 18 });
-    gsap.set(sensorCta, { autoAlpha: 0, filter: 'blur(18px)', y: 20 });
+    gsap.set(sensorCta, { autoAlpha: 0, filter: 'blur(18px)', '--cta-y': '20px' });
     gsap.set(readerCopy, { autoAlpha: 1, filter: 'none', x: 0, y: 0 });
     gsap.set(readerCopyText, { autoAlpha: 1, filter: 'blur(0px)' });
     this.sensorFieldIsOpaque = false;
     this.readerFade.opacity = 1;
     this.setReaderOpacity(1);
-    this.centerSensor?.position.set(-0.82, 0, 0.09);
-    this.centerSensor?.rotation.set(Math.PI / 2, 0, 0);
+    this.centerSensorReveal.opacity = 0;
+    this.centerSensor?.position.set(0, 0, 0.09);
+    this.centerSensor?.rotation.copy(this.centerSensorDisplayRotation);
     this.centerSensor?.scale.setScalar(1.48);
     if (this.sensorConstellationMaterial) {
       gsap.set(this.sensorConstellationMaterial, { opacity: 0, size: 0.023 });
     }
     if (this.sensorFillMaterial) {
       gsap.set(this.sensorFillMaterial, { opacity: 0 });
+    }
+    if (this.sensorMessageMaterial) {
+      gsap.set(this.sensorMessageMaterial, { opacity: 0, size: 0.014 });
+    }
+    if (this.sensorMessageTextMaterial) {
+      gsap.set(this.sensorMessageTextMaterial, { opacity: 0 });
     }
     this.setMaterialsOpacity(this.centerSensorMaterials, 0);
     this.setMaterialsOpacity(this.sensorFieldMaterials, 0);
@@ -631,7 +655,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
         },
         1.86,
       )
-      .to(deviceStage, { autoAlpha: 1, duration: 0.28, ease: 'power2.out' }, 2.3)
+      .to(deviceStage, { autoAlpha: 1, duration: 0.28, ease: 'power2.out' }, 2.24)
       .to(
         deviceCopyItems,
         {
@@ -639,10 +663,10 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           filter: 'blur(0px)',
           y: 0,
           duration: 0.45,
-          stagger: (index: number) => Math.floor(index / 2) * 0.28,
+          stagger: (index: number) => Math.floor(index / 2) * 0.22,
           ease: 'power2.out',
         },
-        2.46,
+        2.42,
       )
       .to(
         deviceStage,
@@ -658,7 +682,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           duration: 0.4,
           ease: 'power2.out',
         },
-        2.3,
+        2.24,
       )
       .to(
         deviceStage,
@@ -673,9 +697,9 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           duration: 0.7,
           ease: 'power2.inOut',
         },
-        5.12,
+        3.18,
       )
-      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getDeviceModelPosition('laptop'), 0.7), 5.12)
+      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getDeviceModelPosition('laptop'), 0.7), 3.18)
       .to(
         this.model.rotation,
         {
@@ -685,7 +709,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           duration: 0.7,
           ease: 'power2.inOut',
         },
-        5.12,
+        3.18,
       )
       .to(
         this.topRotationRig.scale,
@@ -696,11 +720,11 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           duration: 0.7,
           ease: 'power2.inOut',
         },
-        5.12,
+        3.18,
       )
-      .to(dna?.position ?? {}, this.vectorTweenDynamic(() => this.getDeviceDnaPosition('laptop'), 0.7), 5.12)
-      .to(this, { dnaDisplayScale: () => this.getDeviceDnaScale('laptop'), duration: 0.7, ease: 'power2.inOut' }, 5.12)
-      .to(deviceCopy, { y: '16vh', duration: 2.5, ease: 'none' }, 5.12)
+      .to(dna?.position ?? {}, this.vectorTweenDynamic(() => this.getDeviceDnaPosition('laptop'), 0.7), 3.18)
+      .to(this, { dnaDisplayScale: () => this.getDeviceDnaScale('laptop'), duration: 0.7, ease: 'power2.inOut' }, 3.18)
+      .to(deviceCopy, { y: '16vh', duration: 3.6, ease: 'none' }, 3.18)
       .to(
         deviceStage,
         {
@@ -714,9 +738,9 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           duration: 0.7,
           ease: 'power2.inOut',
         },
-        5.98,
+        4.28,
       )
-      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getDeviceModelPosition('tablet'), 0.7), 5.98)
+      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getDeviceModelPosition('tablet'), 0.7), 4.28)
       .to(
         this.model.rotation,
         {
@@ -726,7 +750,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           duration: 0.7,
           ease: 'power2.inOut',
         },
-        5.98,
+        4.28,
       )
       .to(
         this.topRotationRig.scale,
@@ -737,10 +761,10 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           duration: 0.7,
           ease: 'power2.inOut',
         },
-        5.98,
+        4.28,
       )
-      .to(dna?.position ?? {}, this.vectorTweenDynamic(() => this.getDeviceDnaPosition('tablet'), 0.7), 5.98)
-      .to(this, { dnaDisplayScale: () => this.getDeviceDnaScale('tablet'), duration: 0.7, ease: 'power2.inOut' }, 5.98)
+      .to(dna?.position ?? {}, this.vectorTweenDynamic(() => this.getDeviceDnaPosition('tablet'), 0.7), 4.28)
+      .to(this, { dnaDisplayScale: () => this.getDeviceDnaScale('tablet'), duration: 0.7, ease: 'power2.inOut' }, 4.28)
       .to(
         deviceStage,
         {
@@ -754,9 +778,9 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           duration: 0.75,
           ease: 'power2.inOut',
         },
-        6.86,
+        5.36,
       )
-      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getDeviceModelPosition('phone'), 0.75), 6.86)
+      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getDeviceModelPosition('phone'), 0.75), 5.36)
       .to(
         this.model.rotation,
         {
@@ -766,7 +790,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           duration: 0.75,
           ease: 'power2.inOut',
         },
-        6.86,
+        5.36,
       )
       .to(
         this.topRotationRig.scale,
@@ -777,10 +801,10 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           duration: 0.75,
           ease: 'power2.inOut',
         },
-        6.86,
+        5.36,
       )
-      .to(dna?.position ?? {}, this.vectorTweenDynamic(() => this.getDeviceDnaPosition('phone'), 0.75), 6.86)
-      .to(this, { dnaDisplayScale: () => this.getDeviceDnaScale('phone'), duration: 0.75, ease: 'power2.inOut' }, 6.86)
+      .to(dna?.position ?? {}, this.vectorTweenDynamic(() => this.getDeviceDnaPosition('phone'), 0.75), 5.36)
+      .to(this, { dnaDisplayScale: () => this.getDeviceDnaScale('phone'), duration: 0.75, ease: 'power2.inOut' }, 5.36)
       .to(deviceStage, { autoAlpha: 0, filter: 'blur(18px)', duration: 0.44, ease: 'power2.in' }, 7.7)
       .call(() => this.setReaderOpacity(1), undefined, 7.7)
       .set(this.readerBlendPlane ?? {}, { visible: true }, 7.7)
@@ -798,23 +822,61 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
         7.92,
       )
       .to(this.sensorStarMotion, { progress: 1, duration: 0.95, ease: 'none' }, 8.05)
-      .to(this.sensorFillMaterial ?? {}, { opacity: 1, duration: 0.28, ease: 'power2.out' }, 8.9)
-      .to(this.sensorConstellationMaterial ?? {}, { opacity: 0.2, size: 0.012, duration: 0.34, ease: 'power2.inOut' }, 9.02)
-      .call(() => this.prepareMaterialsForReveal(this.centerSensorMaterials), undefined, 9.0)
-      .to(this.centerSensorMaterials, { opacity: 1, duration: 0.34, ease: 'power2.out' }, 9.02)
-      .to(this.sensorFillMaterial ?? {}, { opacity: 0, duration: 0.26, ease: 'power2.in' }, 9.42)
+      .to(this.sensorConstellationMaterial ?? {}, { opacity: 0.26, size: 0.012, duration: 0.34, ease: 'power2.inOut' }, 8.92)
+      .call(() => this.prepareMaterialsForReveal(this.centerSensorMaterials), undefined, 8.9)
+      .to(
+        this.centerSensorReveal,
+        {
+          opacity: 1,
+          duration: 0.34,
+          ease: 'power2.out',
+          onUpdate: () => this.setMaterialsOpacity(this.centerSensorMaterials, this.centerSensorReveal.opacity),
+        },
+        8.92,
+      )
+      .to(this.sensorFillMaterial ?? {}, { opacity: 0, duration: 0.01, ease: 'none' }, 8.92)
       .to(this.sensorConstellationMaterial ?? {}, { opacity: 0, duration: 0.22, ease: 'power2.in' }, 9.42)
-      .to(this.centerSensor?.position ?? {}, this.vectorTweenDynamic(() => this.centerSensor?.userData['fieldPosition'] ?? new THREE.Vector3(), 0.52), 9.72)
+      .to(this.sensorMessageMaterial ?? {}, { opacity: 0.92, size: 0.016, duration: 0.35, ease: 'power2.out' }, 9.28)
+      .to(this.sensorMessageMotion, { progress: 1, duration: 1.02, ease: 'none' }, 9.34)
+      .to(
+        this.centerSensor?.rotation ?? {},
+        {
+          x: () => this.centerSensorDisplayRotation.x + 0.22,
+          y: () => this.centerSensorDisplayRotation.y + 0.28,
+          z: () => this.centerSensorDisplayRotation.z + Math.PI,
+          duration: 0.86,
+          ease: 'power2.inOut',
+        },
+        9.32,
+      )
+      .to(this.sensorMessageMaterial ?? {}, { opacity: 0, duration: 0.26, ease: 'power2.out' }, 10.22)
+      .to(this.sensorMessageTextMaterial ?? {}, { opacity: 0.96, duration: 0.34, ease: 'power2.out' }, 10.28)
+      .to(this.sensorMessageTextMaterial ?? {}, { opacity: 0, duration: 0.34, ease: 'power2.in' }, 10.7)
+      .to(
+        this.centerSensor?.rotation ?? {},
+        {
+          x: () => this.centerSensorDisplayRotation.x,
+          y: () => this.centerSensorDisplayRotation.y,
+          z: () => this.centerSensorDisplayRotation.z,
+          duration: 0.56,
+          ease: 'power2.inOut',
+        },
+        10.24,
+      )
+      .to(this.sensorMessageMaterial ?? {}, { opacity: 0.72, size: 0.014, duration: 0.14, ease: 'power2.out' }, 11.04)
+      .to(this.sensorMessageMotion, { progress: 0, duration: 0.64, ease: 'power2.in' }, 11.12)
+      .to(this.sensorMessageMaterial ?? {}, { opacity: 0, size: 0.011, duration: 0.42, ease: 'power2.in' }, 11.36)
+      .to(this.centerSensor?.position ?? {}, this.vectorTweenDynamic(() => this.centerSensor?.userData['fieldPosition'] ?? new THREE.Vector3(), 0.6), 10.86)
       .to(
         this.centerSensor?.rotation ?? {},
         {
           x: () => (this.centerSensor?.userData['fieldRotation'] as THREE.Euler | undefined)?.x ?? 0,
           y: () => (this.centerSensor?.userData['fieldRotation'] as THREE.Euler | undefined)?.y ?? 0,
           z: () => (this.centerSensor?.userData['fieldRotation'] as THREE.Euler | undefined)?.z ?? 0,
-          duration: 0.52,
+          duration: 0.6,
           ease: 'power2.inOut',
         },
-        9.72,
+        10.86,
       )
       .to(
         this.centerSensor?.scale ?? {},
@@ -822,15 +884,15 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           x: () => this.centerSensor?.userData['fieldScale'] ?? 0.34,
           y: () => this.centerSensor?.userData['fieldScale'] ?? 0.34,
           z: () => this.centerSensor?.userData['fieldScale'] ?? 0.34,
-          duration: 0.52,
+          duration: 0.6,
           ease: 'power2.inOut',
         },
-        9.72,
+        10.86,
       )
-      .call(() => this.prepareMaterialsForReveal(this.sensorFieldMaterials), undefined, 10.12)
-      .to(this.sensorFieldReveal, { progress: 1, duration: 0.72, ease: 'none' }, 10.18)
-      .to(this.sensorStarMotion, { fall: 1, duration: 0.9, ease: 'none' }, 10.92)
-      .to(sensorCta, { autoAlpha: 1, filter: 'blur(0px)', y: 0, duration: 0.62, ease: 'power3.out' }, 11.36);
+      .call(() => this.prepareMaterialsForReveal(this.sensorFieldMaterials), undefined, 10.9)
+      .to(this.sensorFieldReveal, { progress: 1, duration: 0.9, ease: 'none' }, 10.96)
+      .to(this.sensorStarMotion, { fall: 1, duration: 0.9, ease: 'none' }, 12.06)
+      .to(sensorCta, { autoAlpha: 1, filter: 'blur(0px)', '--cta-y': '0px', duration: 0.62, ease: 'power3.out' }, 12.08);
   }
 
   private setupPhraseAnimation(): void {
@@ -881,28 +943,35 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     const group = new THREE.Group();
     group.name = 'sensor_group';
 
-    const strip = this.roundedBox('sensor_strip', [1.62, 0.045, 0.42], [0.55, -0.02, 0], materials.white, 0.045);
-    group.add(strip);
+    const base = this.roundedBox('sensor_base_card', [1.88, 0.045, 0.68], [0.5, -0.02, 0], materials.white, 0.035);
+    group.add(base);
+
+    const frontPad = this.roundedBox('sensor_front_pad', [0.52, 0.052, 0.64], [1.18, -0.014, 0], materials.white, 0.03);
+    group.add(frontPad);
+
+    const blueLine = this.roundedBox('sensor_blue_readout_line', [1.48, 0.012, 0.025], [0.35, 0.012, -0.3], materials.blue, 0.006);
+    group.add(blueLine);
 
     const sampleDot = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.012, 28), materials.blue);
     sampleDot.name = 'sensor_sample_dot';
     sampleDot.rotation.x = Math.PI / 2;
-    sampleDot.position.set(0.7, 0.012, 0);
+    sampleDot.position.set(0.48, 0.018, 0.06);
     group.add(sampleDot);
 
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 14; i++) {
       const contact = this.roundedBox(
         `sensor_contact_${i}`,
-        [0.035, 0.014, 0.13],
-        [1.26, 0.012, -0.18 + i * 0.06],
+        [0.024, 0.018, 0.12],
+        [1.22 + (i % 2) * 0.038, 0.018, -0.28 + i * 0.043],
         materials.charcoal,
-        0.01,
+        0.006,
       );
       group.add(contact);
     }
 
     const label = this.createSensorLabelPlane();
-    label.position.set(0.18, 0.02, 0);
+    label.scale.set(1.18, 1, 1);
+    label.position.set(0.12, 0.024, 0.02);
     group.add(label);
 
     return group;
@@ -1035,7 +1104,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   }
 
   private createSensorConstellationScene(): void {
-    const starCount = this.getViewportSize().width < 760 ? 1800 : 3400;
+    const starCount = this.getViewportSize().width < 760 ? 2600 : 5200;
     const startPositions = new Float32Array(starCount * 3);
     const targetPositions = new Float32Array(starCount * 3);
     const fallPositions = new Float32Array(starCount * 3);
@@ -1088,14 +1157,24 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.sensorFillCard = this.roundedBox('sensor_fill_card', [2.42, 0.6, 0.025], [0, 0, 0.035], this.sensorFillMaterial, 0.035);
     this.scene.add(this.sensorFillCard);
 
+    const sensorLayout = this.getSensorFieldLayout();
+    const centerLayoutIndex = Math.floor(sensorLayout.length / 2);
+    const centerLayout = sensorLayout[centerLayoutIndex];
+    const centerFieldPosition = centerLayout?.position.clone() ?? new THREE.Vector3(0, -0.34, 0.08);
+    const centerFieldRotation = centerLayout?.rotation.clone() ?? this.centerSensorDisplayRotation.clone();
     this.centerSensor = this.createStandaloneSensorModel(1.48);
     this.centerSensor.name = 'center_revealed_sensor';
-    this.centerSensor.position.set(-0.82, 0, 0.09);
-    this.centerSensor.rotation.set(Math.PI / 2, 0, 0);
-    this.centerSensor.userData['fieldPosition'] = new THREE.Vector3(-3.7, -1.62, 0.02);
-    this.centerSensor.userData['fieldRotation'] = new THREE.Euler(Math.PI / 2.12, -0.42, -0.26);
-    this.centerSensor.userData['fallRotation'] = new THREE.Euler(Math.PI / 2.12 + 2.4, -0.42 - 1.8, -0.26 + 2.8);
-    this.centerSensor.userData['fieldScale'] = 0.34;
+    this.centerSensor.position.set(0, 0, 0.09);
+    this.centerSensor.rotation.copy(this.centerSensorDisplayRotation);
+    this.centerSensor.userData['fieldPosition'] = centerFieldPosition;
+    this.centerSensor.userData['fieldRotation'] = centerFieldRotation;
+    this.centerSensor.userData['fallRotation'] = new THREE.Euler(
+      centerFieldRotation.x + 2.4,
+      centerFieldRotation.y - 1.8,
+      centerFieldRotation.z + 2.8,
+    );
+    this.centerSensor.userData['fieldScale'] = centerLayout?.scale ?? 0.38;
+    this.centerSensor.userData['baseRotation'] = centerFieldRotation.clone();
     this.centerSensor.userData['fallY'] = -3.15;
     this.centerSensor.visible = true;
     this.centerSensorMaterials = this.collectMaterials(this.centerSensor);
@@ -1104,57 +1183,293 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
     this.sensorField = new THREE.Group();
     this.sensorField.name = 'sensor_field';
-    const compact = this.getViewportSize().width < 760;
-    const columns = compact ? 6 : 11;
-    const rows = compact ? 6 : 7;
-    for (let row = 0; row < rows; row++) {
-      for (let column = 0; column < columns; column++) {
-        if (row === 0 && column === 0) continue;
+    this.sensorFieldRevealStarts = [];
+    const sensorField = this.sensorField;
+    sensorLayout.forEach((layout, index) => {
+      if (index === centerLayoutIndex) return;
 
-        const sensor = this.createStandaloneSensorModel(compact ? 0.28 : 0.34);
-        const x = (column - (columns - 1) / 2) * (compact ? 0.7 : 0.74);
-        const y = (row - (rows - 1) / 2) * (compact ? 0.5 : 0.54);
-        sensor.position.set(x, y, -0.04 + Math.random() * 0.08);
-        const faceForward = Math.random() > 0.52;
-        sensor.rotation.set(
-          faceForward ? Math.PI / 2 + (Math.random() - 0.5) * 0.5 : (Math.random() - 0.5) * 0.5,
-          (Math.random() - 0.5) * 1.35,
-          (Math.random() - 0.5) * 0.7,
-        );
-        sensor.userData['baseRotation'] = sensor.rotation.clone();
-        sensor.userData['fallRotation'] = new THREE.Euler(
-          sensor.rotation.x + (Math.random() - 0.5) * 4.6,
-          sensor.rotation.y + (Math.random() - 0.5) * 5.2,
-          sensor.rotation.z + (Math.random() - 0.5) * 4.8,
-        );
-        sensor.userData['startY'] = y;
-        sensor.userData['fallY'] = -2.9 - Math.random() * 0.9;
-        const sensorMaterials = this.collectMaterials(sensor);
-        this.setMaterialsOpacity(sensorMaterials, 0);
-        this.sensorFieldMaterialGroups.push(sensorMaterials);
-        this.sensorFieldItems.push(sensor);
-        this.sensorField.add(sensor);
-      }
-    }
+      const sensor = this.createStandaloneSensorModel(layout.scale);
+      const gatherStartPosition = this.createSensorGatherStartPosition(index);
+      const gatherStartRotation = new THREE.Euler(
+        layout.rotation.x + (Math.random() - 0.5) * 5.4,
+        layout.rotation.y + (Math.random() - 0.5) * 5.8,
+        layout.rotation.z + (Math.random() - 0.5) * 5.6,
+      );
+      sensor.position.copy(gatherStartPosition);
+      sensor.rotation.copy(gatherStartRotation);
+      sensor.userData['fieldPosition'] = layout.position.clone();
+      sensor.userData['gatherStartPosition'] = gatherStartPosition;
+      sensor.userData['gatherStartRotation'] = gatherStartRotation;
+      sensor.userData['baseRotation'] = layout.rotation.clone();
+      sensor.userData['fieldRotation'] = layout.rotation.clone();
+      sensor.userData['floatPhase'] = Math.random() * Math.PI * 2;
+      sensor.userData['fallRotation'] = new THREE.Euler(
+        layout.rotation.x + (Math.random() - 0.5) * 4.6,
+        layout.rotation.y + (Math.random() - 0.5) * 5.2,
+        layout.rotation.z + (Math.random() - 0.5) * 4.8,
+      );
+      sensor.userData['startY'] = layout.position.y;
+      sensor.userData['fallY'] = -2.9 - Math.random() * 0.9 - index * 0.002;
+      this.sensorFieldRevealStarts.push(layout.position.y > 0.46 ? 0.62 + Math.random() * 0.2 : Math.random() * 0.5);
+      const sensorMaterials = this.collectMaterials(sensor);
+      this.setMaterialsOpacity(sensorMaterials, 0);
+      this.sensorFieldMaterialGroups.push(sensorMaterials);
+      this.sensorFieldItems.push(sensor);
+      sensorField.add(sensor);
+    });
     this.sensorField.visible = true;
     this.sensorFieldMaterials = this.collectMaterials(this.sensorField);
     this.scene.add(this.sensorField);
   }
 
-  private createSensorStarTargets(count: number): Float32Array {
+  private createSensorMessageScene(): void {
+    const isCompact = this.getViewportSize().width < 760;
+    const count = isCompact ? 3200 : 5600;
+    const lines = ['Each sensor carries the chemistry', 'for a clearer reader result.'];
+    const startPositions = new Float32Array(count * 3);
+    const targetPositions = this.createTextStarTargets(lines, count);
+
+    for (let index = 0; index < count; index++) {
+      const offset = index * 3;
+      const edge = Math.floor(Math.random() * 4);
+      const horizontalSpread = isCompact ? 4.8 : 6.6;
+      const verticalSpread = isCompact ? 3.2 : 4.4;
+
+      if (edge === 0) {
+        startPositions[offset] = (Math.random() - 0.5) * horizontalSpread;
+        startPositions[offset + 1] = 3 + Math.random() * verticalSpread * 0.45;
+      } else if (edge === 1) {
+        startPositions[offset] = (Math.random() - 0.5) * horizontalSpread;
+        startPositions[offset + 1] = -2.4 - Math.random() * verticalSpread * 0.45;
+      } else if (edge === 2) {
+        startPositions[offset] = -3.8 - Math.random() * horizontalSpread * 0.45;
+        startPositions[offset + 1] = 1.3 + (Math.random() - 0.5) * verticalSpread;
+      } else {
+        startPositions[offset] = 3.8 + Math.random() * horizontalSpread * 0.45;
+        startPositions[offset + 1] = 1.3 + (Math.random() - 0.5) * verticalSpread;
+      }
+
+      startPositions[offset + 2] = -1.6 + Math.random() * 3.2;
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(startPositions.slice(), 3));
+
+    const material = new THREE.PointsMaterial({
+      color: '#f7efe2',
+      size: 0.014,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    });
+
+    this.sensorMessage = new THREE.Points(geometry, material);
+    this.sensorMessage.name = 'sensor_message_stars';
+    this.sensorMessageGeometry = geometry;
+    this.sensorMessageMaterial = material;
+    this.sensorMessageStartPositions = startPositions;
+    this.sensorMessageTargetPositions = targetPositions;
+    this.scene.add(this.sensorMessage);
+
+    const textPlane = this.createSensorMessageTextPlane(lines);
+    this.scene.add(textPlane);
+  }
+
+  private createTextStarTargets(lines: string[], count: number): Float32Array {
+    const layout = this.getSensorMessageLayout();
+    const canvas = document.createElement('canvas');
+    canvas.width = layout.canvasWidth;
+    canvas.height = layout.canvasHeight;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    const candidates: Array<{ x: number; y: number; weight: number }> = [];
+
+    if (context) {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.fillStyle = '#ffffff';
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.font = layout.font;
+
+      const startY = canvas.height / 2 - ((lines.length - 1) * layout.lineHeight) / 2;
+      lines.forEach((line, index) => {
+        context.fillText(line, canvas.width / 2, startY + index * layout.lineHeight, canvas.width * layout.maxTextWidth);
+      });
+
+      const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      const step = 3;
+      for (let y = 0; y < canvas.height; y += step) {
+        for (let x = 0; x < canvas.width; x += step) {
+          const alpha = data[(y * canvas.width + x) * 4 + 3];
+          if (alpha > 40) {
+            candidates.push({ x, y, weight: alpha / 255 });
+          }
+        }
+      }
+    }
+
     const positions = new Float32Array(count * 3);
-    const width = 2.42;
-    const height = 0.58;
+
+    for (let index = 0; index < count; index++) {
+      const offset = index * 3;
+      const point = candidates.length
+        ? candidates[Math.floor(Math.random() * candidates.length)]
+        : { x: Math.random() * canvas.width, y: Math.random() * canvas.height, weight: 1 };
+      const normalizedX = point.x / canvas.width - 0.5;
+      const normalizedY = 0.5 - point.y / canvas.height;
+
+      positions[offset] = normalizedX * layout.worldWidth + (Math.random() - 0.5) * 0.006;
+      positions[offset + 1] = layout.worldY + normalizedY * layout.worldHeight + (Math.random() - 0.5) * 0.006;
+      positions[offset + 2] = (Math.random() - 0.5) * 0.06;
+    }
+
+    return positions;
+  }
+
+  private createSensorMessageTextPlane(lines: string[]): THREE.Mesh {
+    const layout = this.getSensorMessageLayout();
+    const canvas = document.createElement('canvas');
+    canvas.width = layout.canvasWidth;
+    canvas.height = layout.canvasHeight;
+    const context = canvas.getContext('2d');
+
+    if (context) {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.fillStyle = '#f7efe2';
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.font = layout.font;
+
+      const startY = canvas.height / 2 - ((lines.length - 1) * layout.lineHeight) / 2;
+      lines.forEach((line, index) => {
+        context.fillText(line, canvas.width / 2, startY + index * layout.lineHeight, canvas.width * layout.maxTextWidth);
+      });
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.needsUpdate = true;
+
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      depthTest: false,
+      toneMapped: false,
+    });
+
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(layout.worldWidth, layout.worldHeight), material);
+    plane.name = 'sensor_message_text';
+    plane.position.set(0, layout.worldY, 0.18);
+    plane.renderOrder = 40;
+    this.sensorMessageTextMaterial = material;
+    return plane;
+  }
+
+  private getSensorMessageLayout(): {
+    canvasWidth: number;
+    canvasHeight: number;
+    font: string;
+    lineHeight: number;
+    maxTextWidth: number;
+    worldWidth: number;
+    worldHeight: number;
+    worldY: number;
+  } {
+    const isCompact = this.getViewportSize().width < 760;
+
+    return {
+      canvasWidth: 1800,
+      canvasHeight: 480,
+      font: '700 126px Arial',
+      lineHeight: 150,
+      maxTextWidth: 0.92,
+      worldWidth: isCompact ? 4.5 : 5.95,
+      worldHeight: 1.58,
+      worldY: isCompact ? 1.36 : 1.28,
+    };
+  }
+
+  private getSensorFieldLayout(): Array<{ position: THREE.Vector3; rotation: THREE.Euler; scale: number }> {
+    const compact = this.getViewportSize().width < 760;
+    const columns = compact ? 6 : 11;
+    const rows = compact ? 6 : 7;
+    const gapX = compact ? 0.78 : 0.9;
+    const gapY = compact ? 0.5 : 0.56;
+    const baseScale = compact ? 0.32 : 0.38;
+    const yBias = compact ? -0.36 : -0.2;
+    const layout: Array<{ position: THREE.Vector3; rotation: THREE.Euler; scale: number }> = [];
+
+    for (let row = 0; row < rows; row++) {
+      for (let column = 0; column < columns; column++) {
+        const x = (column - (columns - 1) / 2) * gapX;
+        const y = (row - (rows - 1) / 2) * gapY + yBias;
+        layout.push({
+          position: new THREE.Vector3(x, y, -0.04 + ((row * columns + column) % 5) * 0.018),
+          rotation: new THREE.Euler(
+            0.05 + (row - (rows - 1) / 2) * 0.018,
+            (column - (columns - 1) / 2) * 0.045,
+            (row - (rows - 1) / 2) * 0.025,
+          ),
+          scale: baseScale,
+        });
+      }
+    }
+
+    return layout;
+  }
+
+  private createSensorGatherStartPosition(index: number): THREE.Vector3 {
+    const compact = this.getViewportSize().width < 760;
+    const edge = index % 4;
+    const xSpread = compact ? 4.1 : 5.8;
+    const ySpread = compact ? 2.8 : 3.5;
+
+    if (edge === 0) {
+      return new THREE.Vector3(-3.9 - Math.random() * 1.2, -0.2 + (Math.random() - 0.5) * ySpread, -0.6 + Math.random() * 1.2);
+    }
+    if (edge === 1) {
+      return new THREE.Vector3(3.9 + Math.random() * 1.2, -0.2 + (Math.random() - 0.5) * ySpread, -0.6 + Math.random() * 1.2);
+    }
+    if (edge === 2) {
+      return new THREE.Vector3((Math.random() - 0.5) * xSpread, 2.75 + Math.random() * 0.9, -0.6 + Math.random() * 1.2);
+    }
+
+    return new THREE.Vector3((Math.random() - 0.5) * xSpread, -2.9 - Math.random() * 0.9, -0.6 + Math.random() * 1.2);
+  }
+
+  private createSensorStarTargets(count: number): Float32Array {
+    const sampled = this.createSensorStarTargetsFromTemplate(count);
+    if (sampled) return sampled;
+
+    const positions = new Float32Array(count * 3);
+    const width = 3.05;
+    const height = 0.92;
     const halfWidth = width / 2;
     const halfHeight = height / 2;
 
     for (let i = 0; i < count; i++) {
       const index = i * 3;
-      const isOutline = i < count * 0.08;
+      const isOutline = i < count * 0.12;
+      const isContact = i >= count * 0.12 && i < count * 0.28;
+      const isLayerLine = i >= count * 0.28 && i < count * 0.38;
+      const isLidSurface = i >= count * 0.38 && i < count * 0.74;
       let x = 0;
       let y = 0;
 
-      if (isOutline) {
+      if (isContact) {
+        const contactIndex = i % 16;
+        x = halfWidth - 0.22 + (Math.random() - 0.5) * 0.085;
+        y = -halfHeight + 0.11 + contactIndex * ((height - 0.22) / 15) + (Math.random() - 0.5) * 0.012;
+      } else if (isLayerLine) {
+        const line = i % 3;
+        x = -halfWidth + 0.18 + Math.random() * (width - 0.42);
+        y = -halfHeight + 0.1 + line * 0.055 + (Math.random() - 0.5) * 0.012;
+      } else if (isLidSurface) {
+        const lidEase = Math.random();
+        x = -halfWidth + 0.18 + lidEase * (width - 0.64);
+        y = (Math.random() - 0.5) * height * 0.62;
+      } else if (isOutline) {
         const edge = Math.floor(Math.random() * 4);
         if (edge === 0) {
           x = -halfWidth + Math.random() * width;
@@ -1177,26 +1492,208 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       const sampleDot = i % 31 === 0;
       if (sampleDot) {
         const angle = Math.random() * Math.PI * 2;
-        const radius = Math.random() * 0.1;
-        x = 0.34 + Math.cos(angle) * radius;
-        y = Math.sin(angle) * radius;
+        const radius = Math.random() * 0.085;
+        x = 0.48 + Math.cos(angle) * radius;
+        y = 0.08 + Math.sin(angle) * radius;
       }
 
       positions[index] = x;
       positions[index + 1] = y;
-      positions[index + 2] = (Math.random() - 0.5) * 0.02;
+      positions[index + 2] = (Math.random() - 0.5) * 0.06;
     }
 
     return positions;
   }
 
+  private createSensorStarTargetsFromTemplate(count: number): Float32Array | undefined {
+    if (!this.optimizedCartridgeTemplate) return undefined;
+
+    const triangles: Array<{ a: THREE.Vector3; b: THREE.Vector3; c: THREE.Vector3; area: number }> = [];
+    const localMatrix = new THREE.Matrix4();
+    const displayMatrix = new THREE.Matrix4().makeRotationFromEuler(this.centerSensorDisplayRotation);
+    const center = new THREE.Vector3();
+    const scale = 1.48;
+
+    this.optimizedCartridgeTemplate.updateMatrixWorld(true);
+    new THREE.Box3().setFromObject(this.optimizedCartridgeTemplate).getCenter(center);
+
+    this.optimizedCartridgeTemplate.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (!mesh.isMesh || !mesh.geometry) return;
+
+      const geometry = mesh.geometry;
+      const position = geometry.getAttribute('position') as THREE.BufferAttribute | undefined;
+      if (!position || position.count < 3) return;
+
+      localMatrix.copy(mesh.matrixWorld);
+      for (let index = 0; index < position.count - 2; index += 3) {
+        const a = new THREE.Vector3().fromBufferAttribute(position, index).applyMatrix4(localMatrix).sub(center);
+        const b = new THREE.Vector3().fromBufferAttribute(position, index + 1).applyMatrix4(localMatrix).sub(center);
+        const c = new THREE.Vector3().fromBufferAttribute(position, index + 2).applyMatrix4(localMatrix).sub(center);
+        const area = b.clone().sub(a).cross(c.clone().sub(a)).length() * 0.5;
+        if (area > 0.000001) triangles.push({ a, b, c, area });
+      }
+    });
+
+    if (!triangles.length) return undefined;
+
+    const totalArea = triangles.reduce((sum, triangle) => sum + triangle.area, 0);
+    const positions = new Float32Array(count * 3);
+    const point = new THREE.Vector3();
+
+    for (let index = 0; index < count; index++) {
+      let pick = Math.random() * totalArea;
+      let triangle = triangles[triangles.length - 1];
+      for (const candidate of triangles) {
+        pick -= candidate.area;
+        if (pick <= 0) {
+          triangle = candidate;
+          break;
+        }
+      }
+
+      let u = Math.random();
+      let v = Math.random();
+      if (u + v > 1) {
+        u = 1 - u;
+        v = 1 - v;
+      }
+
+      point
+        .copy(triangle.a)
+        .add(triangle.b.clone().sub(triangle.a).multiplyScalar(u))
+        .add(triangle.c.clone().sub(triangle.a).multiplyScalar(v))
+        .applyMatrix4(displayMatrix)
+        .multiplyScalar(scale);
+
+      const offset = index * 3;
+      positions[offset] = point.x + (Math.random() - 0.5) * 0.015;
+      positions[offset + 1] = point.y + (Math.random() - 0.5) * 0.015;
+      positions[offset + 2] = point.z + 0.09 + (Math.random() - 0.5) * 0.035;
+    }
+
+    return positions;
+  }
+
+  private updateSensorStarTargetsFromTemplate(): void {
+    if (!this.sensorStarTargetPositions) return;
+
+    const targets = this.createSensorStarTargetsFromTemplate(this.sensorStarTargetPositions.length / 3);
+    if (!targets) return;
+
+    this.sensorStarTargetPositions.set(targets);
+  }
+
   private createStandaloneSensorModel(scale: number): THREE.Group {
+    if (this.optimizedCartridgeTemplate) {
+      const group = this.createOptimizedCartridgeClone();
+      group.scale.setScalar(scale);
+      return group;
+    }
+
     const white = this.createTransparentMaterial('#f7f1df', 0.38, 0.08);
     const charcoal = this.createTransparentMaterial('#20262b', 0.52, 0.06);
     const blue = this.createTransparentMaterial('#1d8bb2', 0.28, 0.06);
     const group = this.createSensorGroup({ white, charcoal, blue });
     group.scale.setScalar(scale);
     return group;
+  }
+
+  private createOptimizedCartridgeTemplate(asset: THREE.Object3D): THREE.Group {
+    asset.updateMatrixWorld(true);
+    const buckets = new Map<string, { material: THREE.Material; geometries: THREE.BufferGeometry[] }>();
+
+    asset.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (!mesh.isMesh || !mesh.geometry || !mesh.material) return;
+
+      const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+      const key = material.name || material.uuid;
+      let geometry = mesh.geometry.clone();
+      geometry.applyMatrix4(mesh.matrixWorld);
+      if (geometry.index) {
+        geometry = geometry.toNonIndexed();
+      }
+
+      Object.keys(geometry.attributes).forEach((attributeName) => {
+        if (attributeName !== 'position' && attributeName !== 'normal') {
+          geometry.deleteAttribute(attributeName);
+        }
+      });
+      if (!geometry.getAttribute('normal')) {
+        geometry.computeVertexNormals();
+      }
+
+      const bucket = buckets.get(key) ?? { material, geometries: [] };
+      bucket.geometries.push(geometry);
+      buckets.set(key, bucket);
+    });
+
+    const group = new THREE.Group();
+    group.name = 'optimized_cartridge_template';
+    buckets.forEach(({ material, geometries }) => {
+      const merged = mergeGeometries(geometries, false);
+      geometries.forEach((geometry) => geometry.dispose());
+      if (!merged) return;
+
+      const meshMaterial = material.clone();
+      const mesh = new THREE.Mesh(merged, meshMaterial);
+      mesh.name = `optimized_cartridge_${group.children.length}`;
+      group.add(mesh);
+    });
+
+    const box = new THREE.Box3().setFromObject(group);
+    const center = box.getCenter(new THREE.Vector3());
+    group.children.forEach((child) => {
+      child.position.sub(center);
+    });
+    this.prepareAssetMaterials(group);
+    return group;
+  }
+
+  private createOptimizedCartridgeClone(): THREE.Group {
+    const group = new THREE.Group();
+    group.name = 'standalone_optimized_cartridge';
+    this.optimizedCartridgeTemplate?.children.forEach((child) => {
+      const mesh = child as THREE.Mesh;
+      if (!mesh.isMesh) return;
+
+      const clone = new THREE.Mesh(
+        mesh.geometry,
+        Array.isArray(mesh.material)
+          ? mesh.material.map((material) => material.clone())
+          : (mesh.material as THREE.Material).clone(),
+      );
+      clone.name = mesh.name;
+      clone.position.copy(mesh.position);
+      clone.rotation.copy(mesh.rotation);
+      clone.scale.copy(mesh.scale);
+      group.add(clone);
+    });
+    return group;
+  }
+
+  private refreshStandaloneSensorsFromTemplate(): void {
+    if (!this.optimizedCartridgeTemplate) return;
+
+    const sensors = [this.centerSensor, ...this.sensorFieldItems].filter((sensor): sensor is THREE.Group => !!sensor);
+    sensors.forEach((sensor) => {
+      const opacity = this.collectMaterials(sensor)[0]?.opacity ?? 0;
+      const replacement = this.createOptimizedCartridgeClone();
+      sensor.clear();
+      replacement.children.forEach((child) => sensor.add(child));
+      const materials = this.collectMaterials(sensor);
+      this.setMaterialsOpacity(materials, opacity);
+
+      if (sensor === this.centerSensor) {
+        this.centerSensorMaterials = materials;
+      } else {
+        const index = this.sensorFieldItems.indexOf(sensor);
+        if (index >= 0) this.sensorFieldMaterialGroups[index] = materials;
+      }
+    });
+
+    this.sensorFieldMaterials = this.sensorField ? this.collectMaterials(this.sensorField) : [];
   }
 
   private createTransparentMaterial(color: string, roughness: number, metalness: number): THREE.MeshStandardMaterial {
@@ -1406,6 +1903,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     }
 
     this.updateSensorConstellation();
+    this.updateSensorMessage();
     this.updateSensorField();
 
     if (this.topRotationRig && this.isTopInteractive && !this.isPointerDown) {
@@ -1465,6 +1963,32 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     position.needsUpdate = true;
   }
 
+  private updateSensorMessage(): void {
+    if (!this.sensorMessageGeometry || !this.sensorMessageStartPositions || !this.sensorMessageTargetPositions) {
+      return;
+    }
+
+    const position = this.sensorMessageGeometry.getAttribute('position') as THREE.BufferAttribute;
+    const values = position.array as Float32Array;
+    const progress = gsap.parseEase('power2.inOut')(this.sensorMessageMotion.progress);
+
+    for (let i = 0; i < values.length; i += 3) {
+      values[i] = THREE.MathUtils.lerp(this.sensorMessageStartPositions[i], this.sensorMessageTargetPositions[i], progress);
+      values[i + 1] = THREE.MathUtils.lerp(
+        this.sensorMessageStartPositions[i + 1],
+        this.sensorMessageTargetPositions[i + 1],
+        progress,
+      );
+      values[i + 2] = THREE.MathUtils.lerp(
+        this.sensorMessageStartPositions[i + 2],
+        this.sensorMessageTargetPositions[i + 2],
+        progress,
+      );
+    }
+
+    position.needsUpdate = true;
+  }
+
   private updateSensorField(): void {
     this.syncSensorFieldMaterialMode();
     this.updateSensorFieldReveal();
@@ -1473,12 +1997,29 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       if (sensor === this.selectedFieldSensor) return;
 
       const baseRotation = sensor.userData['baseRotation'] as THREE.Euler | undefined;
+      const gatherStartRotation = sensor.userData['gatherStartRotation'] as THREE.Euler | undefined;
+      const gatherStartPosition = sensor.userData['gatherStartPosition'] as THREE.Vector3 | undefined;
+      const fieldPosition = sensor.userData['fieldPosition'] as THREE.Vector3 | undefined;
       const fallRotation = sensor.userData['fallRotation'] as THREE.Euler | undefined;
       const startY = sensor.userData['startY'] as number | undefined;
       const fallY = sensor.userData['fallY'] as number | undefined;
       const fall = gsap.parseEase('power2.in')(this.sensorStarMotion.fall);
+      const gather = this.getSensorFieldItemRevealProgress(index, this.sensorFieldItems.length);
 
-      if (baseRotation && fallRotation) {
+      if (fieldPosition && gatherStartPosition && fall <= 0.001) {
+        sensor.position.lerpVectors(gatherStartPosition, fieldPosition, gather);
+      }
+
+      if (baseRotation && gatherStartRotation && fall <= 0.001) {
+        const float = gather > 0.995 ? Math.sin(Date.now() * 0.001 + ((sensor.userData['floatPhase'] as number | undefined) ?? index)) * 0.035 : 0;
+        sensor.rotation.set(
+          THREE.MathUtils.lerp(gatherStartRotation.x, baseRotation.x, gather) + float * 0.6,
+          THREE.MathUtils.lerp(gatherStartRotation.y, baseRotation.y, gather) + Math.sin(Date.now() * 0.0008 + index) * 0.04 * (1 - gather),
+          THREE.MathUtils.lerp(gatherStartRotation.z, baseRotation.z, gather) + float,
+        );
+      }
+
+      if (baseRotation && fallRotation && fall > 0.001) {
         sensor.rotation.set(
           THREE.MathUtils.lerp(baseRotation.x, fallRotation.x, fall),
           THREE.MathUtils.lerp(baseRotation.y, fallRotation.y, fall) + Math.sin(Date.now() * 0.0008 + index) * 0.04 * (1 - fall),
@@ -1486,8 +2027,10 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
         );
       }
 
-      if (typeof startY === 'number' && typeof fallY === 'number') {
+      if (fieldPosition && typeof startY === 'number' && typeof fallY === 'number' && fall > 0.001) {
+        sensor.position.x = fieldPosition.x;
         sensor.position.y = THREE.MathUtils.lerp(startY, fallY, fall);
+        sensor.position.z = fieldPosition.z;
       }
     });
 
@@ -1504,7 +2047,16 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     if (!fieldPosition || !fieldRotation || !fallRotation || typeof fallY !== 'number') return;
 
     const fall = gsap.parseEase('power2.in')(this.sensorStarMotion.fall);
-    if (fall <= 0.001) return;
+    if (fall <= 0.001) {
+      if (this.sensorFieldReveal.progress > 0.98) {
+        const baseRotation = this.centerSensor.userData['baseRotation'] as THREE.Euler | undefined;
+        if (baseRotation) {
+          const float = Math.sin(Date.now() * 0.001 + 0.7) * 0.035;
+          this.centerSensor.rotation.set(baseRotation.x + float * 0.6, baseRotation.y, baseRotation.z + float);
+        }
+      }
+      return;
+    }
 
     this.centerSensor.position.x = fieldPosition.x;
     this.centerSensor.position.y = THREE.MathUtils.lerp(fieldPosition.y, fallY, fall);
@@ -1521,9 +2073,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     if (!revealCount) return;
 
     this.sensorFieldMaterialGroups.forEach((materials, index) => {
-      const start = index / revealCount;
-      const localProgress = THREE.MathUtils.clamp((this.sensorFieldReveal.progress - start) * 8.5, 0, 1);
-      const opacity = gsap.parseEase('power2.out')(localProgress);
+      const opacity = this.getSensorFieldItemRevealProgress(index, revealCount);
       materials.forEach((material) => {
         if (this.sensorFieldIsOpaque) return;
         material.transparent = opacity < 0.999;
@@ -1533,6 +2083,14 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
         material.needsUpdate = true;
       });
     });
+  }
+
+  private getSensorFieldItemRevealProgress(index: number, count: number): number {
+    if (!count) return 0;
+
+    const start = this.sensorFieldRevealStarts[index] ?? Math.random() * 0.62;
+    const localProgress = THREE.MathUtils.clamp((this.sensorFieldReveal.progress - start) * 4.2, 0, 1);
+    return gsap.parseEase('power2.out')(localProgress);
   }
 
   private syncSensorFieldMaterialMode(): void {
