@@ -35,8 +35,8 @@ npm test
 
 This model is intentionally stylized and lightweight for a landing-page POC. It is not a manufacturing, CAD, regulatory, or exact product-visualization asset.
 
-The project remote is:
+Live preview:
 
 ```txt
-https://github.com/Pablo-de-Santa/reader-poc.git
+https://gsap.bio-stream.ca/
 ```
