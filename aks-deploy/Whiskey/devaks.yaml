@@ -1,0 +1,92 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: whiskey
+  namespace: development
+  labels:
+    app: whiskey
+    env: development
+spec:
+  type: ClusterIP
+  selector:
+    app: whiskey
+    env: development
+  ports:
+    - name: http
+      port: 80
+      targetPort: 4000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whiskey
+  namespace: development
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: whiskey
+      env: development
+  template:
+    metadata:
+      labels:
+        app: whiskey
+        env: development
+    spec:
+      containers:
+        - name: whiskey
+          image: biostreamdiag.azurecr.io/whiskey:1.0.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4000
+          env:
+            - name: PORT
+              value: "4000"
+            - name: NODE_ENV
+              value: "production"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 4000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 4000
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            timeoutSeconds: 2
+      imagePullSecrets:
+        - name: azurecontainerregistry
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: whiskey
+  namespace: development
+  annotations:
+    kubernetes.io/ingress.class: azure/application-gateway
+    appgw.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  tls:
+    - secretName: star-ca-cloud-bio-stream-ca-2026
+  rules:
+    - host: dev-gsap.bio-stream.ca
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: whiskey
+                port:
+                  number: 80
