@@ -27,6 +27,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   @ViewChild('canvasHost', { static: true }) private canvasHost!: ElementRef<HTMLDivElement>;
   @ViewChild('hero', { static: true }) private hero!: ElementRef<HTMLElement>;
   @ViewChild('readerCopy', { static: true }) private readerCopy!: ElementRef<HTMLElement>;
+  @ViewChild('sampleCopy', { static: true }) private sampleCopy!: ElementRef<HTMLElement>;
   @ViewChild('deviceStage', { static: true }) private deviceStage!: ElementRef<HTMLElement>;
   @ViewChild('sensorCta', { static: true }) private sensorCta!: ElementRef<HTMLElement>;
   @ViewChild('analysisOverlay', { static: true }) private analysisOverlay!: ElementRef<SVGSVGElement>;
@@ -34,6 +35,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   @ViewChild('confirmationCircle', { static: true }) private confirmationCircle!: ElementRef<SVGCircleElement>;
   @ViewChild('confirmationCheck', { static: true }) private confirmationCheck!: ElementRef<SVGPathElement>;
   @ViewChildren('phrase') private phraseElements!: QueryList<ElementRef<HTMLElement>>;
+  @ViewChildren('sampleFluid') private sampleFluidElements!: QueryList<ElementRef<HTMLElement>>;
 
   readonly phrases = [
     'cancer markers',
@@ -47,6 +49,8 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     'metabolic health',
     'immune response',
   ];
+
+  readonly sampleFluids = ['saliva', 'blood', 'urine', 'other bodily fluids'];
 
   private readonly initialModelPosition = new THREE.Vector3(0.7, -0.05, 0);
   private readonly initialModelRotation = new THREE.Euler(0.26, -0.48, 0);
@@ -499,9 +503,12 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     const puddle = this.puddleMesh;
     const readerCopy = this.readerCopy.nativeElement;
     const readerCopyText = Array.from(readerCopy.children);
+    const sampleCopy = this.sampleCopy.nativeElement;
+    const sampleFluidNodes = this.sampleFluidElements.toArray().map((item) => item.nativeElement);
     const deviceStage = this.deviceStage.nativeElement;
     const sensorCta = this.sensorCta.nativeElement;
     const deviceCopy = deviceStage.querySelectorAll('.device-copy');
+    const screenPage = deviceStage.querySelector<HTMLElement>('[data-screen-page]');
     const deviceCopyItems = Array.from(deviceStage.querySelectorAll<HTMLElement>('[data-copy-row]')).sort(
       (first, second) => {
         const rowDifference = Number(first.dataset['copyRow']) - Number(second.dataset['copyRow']);
@@ -544,20 +551,27 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.setDnaOpacity(0);
     gsap.set(deviceStage, {
       autoAlpha: 0,
-      '--device-w': '62vw',
-      '--device-h': '58vh',
-      '--device-r': '1rem',
+      '--device-w': () => this.getDeviceFrame('phone').width,
+      '--device-h': () => this.getDeviceFrame('phone').height,
+      '--device-r': '1.5rem',
       '--device-x': '0vw',
       '--device-y': '0vh',
-      '--stand-o': 1,
+      '--stand-o': 0,
       '--keyboard-o': 0,
-      '--home-o': 0,
+      '--home-o': 1,
+      '--screen-r': '1rem',
     });
     gsap.set(deviceCopy, { autoAlpha: 1, filter: 'blur(0px)', y: '-10vh' });
     gsap.set(deviceCopyItems, { autoAlpha: 0, filter: 'blur(12px)', y: 18 });
+    gsap.set(screenPage, { autoAlpha: 0, filter: 'blur(10px)', yPercent: 0 });
     gsap.set(sensorCta, { autoAlpha: 0, filter: 'blur(18px)', '--cta-y': '20px' });
     gsap.set(readerCopy, { autoAlpha: 1, filter: 'none', x: 0, y: 0 });
     gsap.set(readerCopyText, { autoAlpha: 1, filter: 'blur(0px)' });
+    gsap.set(sampleCopy, { autoAlpha: 0, filter: 'blur(14px)', y: 18 });
+    gsap.set(sampleFluidNodes, { autoAlpha: 0, filter: 'blur(10px)', yPercent: 36 });
+    if (sampleFluidNodes[0]) {
+      gsap.set(sampleFluidNodes[0], { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0 });
+    }
     this.sensorFieldIsOpaque = false;
     this.readerFade.opacity = 1;
     this.setReaderOpacity(1);
@@ -613,6 +627,13 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
         0,
       )
       .to(readerCopyText, { autoAlpha: 0, filter: 'blur(10px)', duration: 0.34, ease: 'power2.in' }, 0)
+      .to(sampleCopy, { autoAlpha: 1, filter: 'blur(0px)', y: 0, duration: 0.32, ease: 'power2.out' }, 0.24)
+      .to(sampleFluidNodes[0] ?? {}, { autoAlpha: 0, filter: 'blur(10px)', yPercent: -32, duration: 0.16 }, 0.58)
+      .to(sampleFluidNodes[1] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0, duration: 0.18 }, 0.62)
+      .to(sampleFluidNodes[1] ?? {}, { autoAlpha: 0, filter: 'blur(10px)', yPercent: -32, duration: 0.16 }, 0.9)
+      .to(sampleFluidNodes[2] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0, duration: 0.18 }, 0.94)
+      .to(sampleFluidNodes[2] ?? {}, { autoAlpha: 0, filter: 'blur(10px)', yPercent: -32, duration: 0.16 }, 1.22)
+      .to(sampleFluidNodes[3] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0, duration: 0.18 }, 1.26)
       .to(this.sensorGroup.position, { x: this.cartridgePulledX, y: this.cartridgeSlotY, z: 0, duration: 0.28 }, 0.62)
       .to(this.sensorGroup.rotation, { x: 0, y: 0, z: 0, duration: 0.28 }, 0.62)
       .set(pipette ?? {}, { visible: true }, 0.86)
@@ -631,14 +652,15 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       .set(puddle ?? {}, { visible: false }, 1.56)
       .set(droplet ?? {}, { visible: false }, 1.56)
       .to(this.sensorGroup.position, { x: this.cartridgeInsertedX, y: this.cartridgeSlotY, z: 0, duration: 0.28 }, 1.58)
+      .to(sampleCopy, { autoAlpha: 0, filter: 'blur(12px)', y: -14, duration: 0.24, ease: 'power2.in' }, 1.66)
       .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getPostSensorModelPosition(), 0.58), 1.86)
       .to(this.topRotationRig.rotation, { x: 0, y: 0, z: 0, duration: 0.58, ease: 'power2.inOut' }, 1.86)
       .to(
         this.model.rotation,
         {
-          x: () => this.getInitialModelRotation().x,
-          y: () => this.getInitialModelRotation().y,
-          z: () => this.getInitialModelRotation().z,
+          x: () => this.getPostSensorModelRotation().x,
+          y: () => this.getPostSensorModelRotation().y,
+          z: () => this.getPostSensorModelRotation().z,
           duration: 0.58,
           ease: 'power2.inOut',
         },
@@ -656,6 +678,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
         1.86,
       )
       .to(deviceStage, { autoAlpha: 1, duration: 0.28, ease: 'power2.out' }, 2.24)
+      .to(screenPage, { autoAlpha: 0.96, filter: 'blur(0px)', duration: 0.38, ease: 'power2.out' }, 2.36)
       .to(
         deviceCopyItems,
         {
@@ -671,60 +694,21 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       .to(
         deviceStage,
         {
-          '--device-w': () => this.getDeviceFrame('desktop').width,
-          '--device-h': () => this.getDeviceFrame('desktop').height,
-          '--device-r': '0.9rem',
+          '--device-w': () => this.getDeviceFrame('phone').width,
+          '--device-h': () => this.getDeviceFrame('phone').height,
+          '--device-r': '1.5rem',
           '--device-x': '0vw',
-          '--device-y': '-1vh',
-          '--stand-o': 1,
+          '--device-y': '0vh',
+          '--stand-o': 0,
           '--keyboard-o': 0,
-          '--home-o': 0,
+          '--home-o': 1,
+          '--screen-r': '1rem',
           duration: 0.4,
           ease: 'power2.out',
         },
         2.24,
       )
-      .to(
-        deviceStage,
-        {
-          '--device-w': () => this.getDeviceFrame('laptop').width,
-          '--device-h': () => this.getDeviceFrame('laptop').height,
-          '--device-r': '0.75rem',
-          '--device-y': '-3vh',
-          '--stand-o': 0,
-          '--keyboard-o': 1,
-          '--home-o': 0,
-          duration: 0.7,
-          ease: 'power2.inOut',
-        },
-        3.18,
-      )
-      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getDeviceModelPosition('laptop'), 0.7), 3.18)
-      .to(
-        this.model.rotation,
-        {
-          x: () => this.getDeviceModelRotation('laptop').x,
-          y: () => this.getDeviceModelRotation('laptop').y,
-          z: () => this.getDeviceModelRotation('laptop').z,
-          duration: 0.7,
-          ease: 'power2.inOut',
-        },
-        3.18,
-      )
-      .to(
-        this.topRotationRig.scale,
-        {
-          x: () => this.getDeviceModelScale('laptop'),
-          y: () => this.getDeviceModelScale('laptop'),
-          z: () => this.getDeviceModelScale('laptop'),
-          duration: 0.7,
-          ease: 'power2.inOut',
-        },
-        3.18,
-      )
-      .to(dna?.position ?? {}, this.vectorTweenDynamic(() => this.getDeviceDnaPosition('laptop'), 0.7), 3.18)
-      .to(this, { dnaDisplayScale: () => this.getDeviceDnaScale('laptop'), duration: 0.7, ease: 'power2.inOut' }, 3.18)
-      .to(deviceCopy, { y: '16vh', duration: 3.6, ease: 'none' }, 3.18)
+      .to(screenPage, { yPercent: -100, duration: 0.7, ease: 'power2.inOut' }, 2.9)
       .to(
         deviceStage,
         {
@@ -735,12 +719,13 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           '--stand-o': 0,
           '--keyboard-o': 0,
           '--home-o': 1,
+          '--screen-r': '0.9rem',
           duration: 0.7,
           ease: 'power2.inOut',
         },
-        4.28,
+        3.62,
       )
-      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getDeviceModelPosition('tablet'), 0.7), 4.28)
+      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getDeviceModelPosition('tablet'), 0.7), 3.62)
       .to(
         this.model.rotation,
         {
@@ -750,7 +735,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           duration: 0.7,
           ease: 'power2.inOut',
         },
-        4.28,
+        3.62,
       )
       .to(
         this.topRotationRig.scale,
@@ -761,50 +746,98 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           duration: 0.7,
           ease: 'power2.inOut',
         },
-        4.28,
+        3.62,
       )
-      .to(dna?.position ?? {}, this.vectorTweenDynamic(() => this.getDeviceDnaPosition('tablet'), 0.7), 4.28)
-      .to(this, { dnaDisplayScale: () => this.getDeviceDnaScale('tablet'), duration: 0.7, ease: 'power2.inOut' }, 4.28)
+      .to(dna?.position ?? {}, this.vectorTweenDynamic(() => this.getDeviceDnaPosition('tablet'), 0.7), 3.62)
+      .to(this, { dnaDisplayScale: () => this.getDeviceDnaScale('tablet'), duration: 0.7, ease: 'power2.inOut' }, 3.62)
+      .to(screenPage, { yPercent: -200, duration: 0.72, ease: 'power2.inOut' }, 3.62)
+      .to(deviceCopy, { y: '-10vh', duration: 3.6, ease: 'none' }, 3.18)
       .to(
         deviceStage,
         {
-          '--device-w': () => this.getDeviceFrame('phone').width,
-          '--device-h': () => this.getDeviceFrame('phone').height,
-          '--device-r': '1.5rem',
-          '--device-y': '0vh',
+          '--device-w': () => this.getDeviceFrame('laptop').width,
+          '--device-h': () => this.getDeviceFrame('laptop').height,
+          '--device-r': '0.75rem',
+          '--device-y': '-3vh',
           '--stand-o': 0,
-          '--keyboard-o': 0,
-          '--home-o': 1,
-          duration: 0.75,
+          '--keyboard-o': 1,
+          '--home-o': 0,
+          '--screen-r': '0.12rem',
+          duration: 0.7,
           ease: 'power2.inOut',
         },
-        5.36,
+        4.72,
       )
-      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getDeviceModelPosition('phone'), 0.75), 5.36)
+      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getDeviceModelPosition('laptop'), 0.7), 4.72)
       .to(
         this.model.rotation,
         {
-          x: () => this.getDeviceModelRotation('phone').x,
-          y: () => this.getDeviceModelRotation('phone').y,
-          z: () => this.getDeviceModelRotation('phone').z,
-          duration: 0.75,
+          x: () => this.getDeviceModelRotation('laptop').x,
+          y: () => this.getDeviceModelRotation('laptop').y,
+          z: () => this.getDeviceModelRotation('laptop').z,
+          duration: 0.7,
           ease: 'power2.inOut',
         },
-        5.36,
+        4.72,
       )
       .to(
         this.topRotationRig.scale,
         {
-          x: () => this.getDeviceModelScale('phone'),
-          y: () => this.getDeviceModelScale('phone'),
-          z: () => this.getDeviceModelScale('phone'),
+          x: () => this.getDeviceModelScale('laptop'),
+          y: () => this.getDeviceModelScale('laptop'),
+          z: () => this.getDeviceModelScale('laptop'),
+          duration: 0.7,
+          ease: 'power2.inOut',
+        },
+        4.72,
+      )
+      .to(dna?.position ?? {}, this.vectorTweenDynamic(() => this.getDeviceDnaPosition('laptop'), 0.7), 4.72)
+      .to(this, { dnaDisplayScale: () => this.getDeviceDnaScale('laptop'), duration: 0.7, ease: 'power2.inOut' }, 4.72)
+      .to(screenPage, { yPercent: -300, duration: 0.72, ease: 'power2.inOut' }, 4.72)
+      .to(
+        deviceStage,
+        {
+          '--device-w': () => this.getDeviceFrame('desktop').width,
+          '--device-h': () => this.getDeviceFrame('desktop').height,
+          '--device-r': '0.9rem',
+          '--device-y': '-1vh',
+          '--stand-o': 1,
+          '--keyboard-o': 0,
+          '--home-o': 0,
+          '--screen-r': '0.12rem',
           duration: 0.75,
           ease: 'power2.inOut',
         },
-        5.36,
+        5.82,
       )
-      .to(dna?.position ?? {}, this.vectorTweenDynamic(() => this.getDeviceDnaPosition('phone'), 0.75), 5.36)
-      .to(this, { dnaDisplayScale: () => this.getDeviceDnaScale('phone'), duration: 0.75, ease: 'power2.inOut' }, 5.36)
+      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getDeviceModelPosition('desktop'), 0.75), 5.82)
+      .to(
+        this.model.rotation,
+        {
+          x: () => this.getDeviceModelRotation('desktop').x,
+          y: () => this.getDeviceModelRotation('desktop').y,
+          z: () => this.getDeviceModelRotation('desktop').z,
+          duration: 0.75,
+          ease: 'power2.inOut',
+        },
+        5.82,
+      )
+      .to(
+        this.topRotationRig.scale,
+        {
+          x: () => this.getDeviceModelScale('desktop'),
+          y: () => this.getDeviceModelScale('desktop'),
+          z: () => this.getDeviceModelScale('desktop'),
+          duration: 0.75,
+          ease: 'power2.inOut',
+        },
+        5.82,
+      )
+      .to(dna?.position ?? {}, this.vectorTweenDynamic(() => this.getDeviceDnaPosition('desktop'), 0.75), 5.82)
+      .to(this, { dnaDisplayScale: () => this.getDeviceDnaScale('desktop'), duration: 0.75, ease: 'power2.inOut' }, 5.82)
+      .to(screenPage, { yPercent: -400, duration: 0.72, ease: 'power2.inOut' }, 5.82)
+      .to(screenPage, { yPercent: -500, duration: 0.72, ease: 'power2.inOut' }, 6.78)
+      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getFinalDeviceModelPosition(), 0.72), 6.78)
       .to(deviceStage, { autoAlpha: 0, filter: 'blur(18px)', duration: 0.44, ease: 'power2.in' }, 7.7)
       .call(() => this.setReaderOpacity(1), undefined, 7.7)
       .set(this.readerBlendPlane ?? {}, { visible: true }, 7.7)
@@ -1899,7 +1932,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.frameId = requestAnimationFrame(() => this.animate());
 
     if (this.particles) {
-      this.particles.rotation.y += this.isPointerDown ? 0.0014 : 0.0007;
+      this.particles.rotation.y += this.isPointerDown ? 0.002 : 0.001;
     }
 
     this.updateSensorConstellation();
@@ -1907,7 +1940,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.updateSensorField();
 
     if (this.topRotationRig && this.isTopInteractive && !this.isPointerDown) {
-      this.topRotationRig.rotation.y += 0.0013;
+      this.topRotationRig.rotation.y += 0.00086;
       this.topRotationRig.rotation.y = this.shortestAngle(this.topRotationRig.rotation.y);
     }
 
@@ -2515,11 +2548,15 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   }
 
   private getPostSensorModelPosition(): THREE.Vector3 {
-    return this.isMobileLayout() ? this.getInitialModelPosition() : this.getDeviceModelPosition('desktop');
+    return this.isMobileLayout() ? this.getInitialModelPosition() : this.getDeviceModelPosition('phone');
+  }
+
+  private getPostSensorModelRotation(): THREE.Euler {
+    return this.isMobileLayout() ? this.getInitialModelRotation() : this.getDeviceModelRotation('phone');
   }
 
   private getPostSensorModelScale(): number {
-    return this.isMobileLayout() ? this.getInitialModelScale() : this.getDeviceModelScale('desktop');
+    return this.isMobileLayout() ? this.getInitialModelScale() : this.getDeviceModelScale('phone');
   }
 
   private getInitialModelRotation(): THREE.Euler {
@@ -2618,13 +2655,19 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     const width = this.getViewportSize().width;
     const compactOffset = width < 760 ? 0.02 : 0;
     const positions = {
-      desktop: new THREE.Vector3(-0.18 + compactOffset, -0.04, 0),
+      desktop: new THREE.Vector3(-0.18 + compactOffset, 0.08, 0),
       laptop: new THREE.Vector3(-0.18 + compactOffset, 0.02, 0),
-      tablet: new THREE.Vector3(-0.06 + compactOffset, 0.07, 0),
-      phone: new THREE.Vector3(-0.05 + compactOffset, 0.09, 0),
+      tablet: new THREE.Vector3(-0.06 + compactOffset, 0.11, 0),
+      phone: new THREE.Vector3(-0.05 + compactOffset, -0.18, 0),
     };
 
     return positions[kind];
+  }
+
+  private getFinalDeviceModelPosition(): THREE.Vector3 {
+    const position = this.getDeviceModelPosition('desktop').clone();
+    position.y += this.getViewportSize().width < 760 ? 0.28 : 0.36;
+    return position;
   }
 
   private getDeviceModelRotation(kind: 'desktop' | 'laptop' | 'tablet' | 'phone'): THREE.Euler {
@@ -2652,10 +2695,10 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     const compact = this.getViewportSize().width < 760;
     const base = compact ? 0.84 : 1;
     const scales = {
-      desktop: 0.58 * base,
+      desktop: 0.54 * base,
       laptop: 0.48 * base,
       tablet: 0.34 * base,
-      phone: 0.24 * base,
+      phone: 0.21 * base,
     };
 
     return scales[kind];

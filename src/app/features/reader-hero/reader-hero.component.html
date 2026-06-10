@@ -37,12 +37,22 @@
     />
   </svg>
 
+  <div #sampleCopy class="sample-copy" aria-hidden="true">
+    <p>Reader and sensor can read signals from</p>
+    <div class="sample-fluid-stage">
+      @for (fluid of sampleFluids; track fluid) {
+        <span #sampleFluid class="sample-fluid">{{ fluid }}</span>
+      }
+    </div>
+    <p>to help turn a small sample into clearer results.</p>
+  </div>
+
   <div #deviceStage class="device-stage" aria-hidden="true">
     <div class="device-copy device-copy-left">
       <p class="eyebrow" data-copy-row="0">Connected results</p>
       <h2 data-copy-row="1">Review insights wherever you are.</h2>
       <p data-copy-row="2">The reader processes the sample, then turns sensor output into a clear result view.</p>
-      <p data-copy-row="3">Your dashboard keeps the same context as you move from desktop to mobile.</p>
+      <p data-copy-row="3">Your dashboard keeps the same context as you move from phone to research view.</p>
       <p data-copy-row="4">Results can be reviewed at home, shared with a care team, or revisited later.</p>
       <p data-copy-row="5">Each scan can keep a simple history, so changes over time are easier to understand.</p>
       <p data-copy-row="6">The interface can highlight what changed, what stayed stable, and what may need follow-up.</p>
@@ -50,7 +60,162 @@
     </div>
 
     <div class="device-shell">
-      <div class="device-screen"></div>
+      <div class="device-screen">
+        <div class="screen-page" data-screen-page>
+          <div class="screen-panel screen-panel-intro">
+            <div class="screen-hero-copy">
+              <p>It starts here</p>
+              <h3>Monitor signals</h3>
+              <span>with lab precision.</span>
+            </div>
+          </div>
+
+          <div class="screen-panel screen-panel-phone-dashboard">
+            <div class="screen-topbar">
+              <span>Health view</span>
+              <span>Synced</span>
+            </div>
+            <div class="screen-result-card">
+              <p>Signal summary</p>
+              <strong>Within focus range</strong>
+              <div class="screen-trend">
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+            <div class="screen-metric-grid">
+              <div>
+                <span>Cortisol</span>
+                <strong class="status-positive">Stable</strong>
+              </div>
+              <div>
+                <span>Inflammation</span>
+                <strong class="status-caution">Watch</strong>
+              </div>
+              <div>
+                <span>Kidney stress</span>
+                <strong class="status-positive">Clear</strong>
+              </div>
+              <div>
+                <span>Vitamin gaps</span>
+                <strong class="status-caution">Review</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="screen-panel screen-panel-tablet-dashboard">
+            <div class="screen-topbar">
+              <span>Health dashboard</span>
+              <span>4 markers</span>
+            </div>
+            <div class="screen-result-card">
+              <p>Personal readout</p>
+              <strong>Two signals need review</strong>
+              <div class="screen-trend">
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+            <div class="screen-metric-grid screen-metric-grid-wide">
+              <div>
+                <span>Cortisol</span>
+                <strong class="status-positive">Stable</strong>
+              </div>
+              <div>
+                <span>Inflammation</span>
+                <strong class="status-caution">Watch</strong>
+              </div>
+              <div>
+                <span>Kidney stress</span>
+                <strong class="status-positive">Clear</strong>
+              </div>
+              <div>
+                <span>Vitamin gaps</span>
+                <strong class="status-caution">Review</strong>
+              </div>
+            </div>
+            <div class="screen-chart screen-tablet-chart">
+              <span></span>
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </div>
+
+          <div class="screen-panel screen-panel-laptop-research">
+            <div class="screen-topbar">
+              <span>Research view</span>
+              <span>42 samples</span>
+            </div>
+            <div class="screen-chart">
+              <span></span>
+              <span></span>
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+            <div class="screen-table">
+              <span>Sample</span><span>Marker</span><span>Status</span>
+              <span>A-018</span><span>CRP</span><span>Review</span>
+              <span>A-022</span><span>TB</span><span>Clear</span>
+              <span>A-031</span><span>ALT</span><span>Trend</span>
+            </div>
+          </div>
+
+          <div class="screen-panel screen-panel-desktop-research">
+            <div class="screen-topbar">
+              <span>Research workspace</span>
+              <span>Export ready</span>
+            </div>
+            <div class="screen-workspace">
+              <div class="screen-chart screen-chart-large">
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <div class="screen-insight-stack">
+                <div>
+                  <span>Panel match</span>
+                  <strong>96%</strong>
+                </div>
+                <div>
+                  <span>Change from baseline</span>
+                  <strong>+8%</strong>
+                </div>
+                <div>
+                  <span>Follow-up window</span>
+                  <strong>7 days</strong>
+                </div>
+              </div>
+            </div>
+            <div class="screen-table">
+              <span>Sample</span><span>Marker</span><span>Status</span>
+              <span>A-044</span><span>CRP</span><span>Elevated</span>
+              <span>A-051</span><span>TB</span><span>Clear</span>
+              <span>A-063</span><span>B12</span><span>Low</span>
+            </div>
+          </div>
+
+          <div class="screen-panel screen-panel-final">
+            <div class="screen-topbar">
+              <span>Focused sensors</span>
+              <span>Next</span>
+            </div>
+            <div class="screen-final-copy">
+              <p>One reader</p>
+              <h3>Explore focused sensors.</h3>
+              <span>Each sensor carries a specific test path.</span>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="device-stand"></div>
       <div class="device-keyboard"></div>
       <div class="device-home"></div>
