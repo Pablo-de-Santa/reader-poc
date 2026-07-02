@@ -1,19 +1,18 @@
 .reader-hero {
   position: relative;
+  isolation: isolate;
   width: 100vw;
   height: 100vh;
   height: 100svh;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 50% -10%, rgba(255, 223, 168, 0.2), transparent 36%),
-    linear-gradient(180deg, rgba(255, 238, 194, 0.08), transparent 32%),
-    #050507;
+  background: #07050d;
   color: #f7efe2;
   cursor: grab;
 }
 
 .reader-hero::before {
   position: absolute;
+  z-index: 0;
   top: -4vh;
   left: 41vw;
   width: 28vw;
@@ -23,19 +22,19 @@
     conic-gradient(
       from 165deg at 50% 0%,
       transparent 0deg,
-      rgba(255, 238, 197, 0.08) 12deg,
-      rgba(255, 238, 197, 0.22) 22deg,
-      rgba(255, 238, 197, 0.1) 33deg,
+      rgba(210, 94, 159, 0.035) 12deg,
+      rgba(115, 217, 168, 0.08) 22deg,
+      rgba(240, 212, 107, 0.045) 33deg,
       transparent 46deg
     ),
     radial-gradient(
       ellipse at 50% 66%,
-      rgba(255, 238, 197, 0.18),
-      rgba(255, 238, 197, 0.08) 28%,
+      rgba(91, 45, 130, 0.14),
+      rgba(210, 94, 159, 0.045) 28%,
       transparent 64%
     );
   filter: blur(8px);
-  opacity: 0.78;
+  opacity: 0.54;
   mix-blend-mode: screen;
   mask-image: linear-gradient(180deg, black 0%, black 70%, rgba(0, 0, 0, 0.34) 86%, transparent 100%);
   pointer-events: none;
@@ -43,6 +42,7 @@
 
 .reader-hero::after {
   position: absolute;
+  z-index: 0;
   top: 48vh;
   left: 29vw;
   width: 62vw;
@@ -50,13 +50,13 @@
   content: "";
   background: radial-gradient(
     ellipse at 55% 42%,
-    rgba(255, 238, 197, 0.22),
-    rgba(255, 238, 197, 0.1) 28%,
-    rgba(255, 238, 197, 0.035) 54%,
+    rgba(115, 217, 168, 0.09),
+    rgba(240, 212, 107, 0.045) 28%,
+    rgba(91, 45, 130, 0.05) 54%,
     transparent 76%
   );
   filter: blur(24px);
-  opacity: 0.76;
+  opacity: 0.48;
   mix-blend-mode: screen;
   pointer-events: none;
 }
