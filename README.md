@@ -29,13 +29,19 @@ The Angular production output is written to:
 dist/reader-poc/browser
 ```
 
+Live preview:
+
+```txt
+https://gsap.bio-stream.ca/
+```
+
 ## Docker
 
 The container builds the Angular app and serves the static output on port `4000`.
 
 ```bash
-docker build -t biostreamdiag.azurecr.io/whiskey:1.0.0.0 .
-docker push biostreamdiag.azurecr.io/whiskey:1.0.0.0
+docker build -t biostreamdiag.azurecr.io/whiskey:1.0.0.1 .
+docker push biostreamdiag.azurecr.io/whiskey:1.0.0.1
 ```
 
 ## AKS Environments
@@ -55,7 +61,7 @@ Current environment hosts:
 The manifests deploy the same image:
 
 ```txt
-biostreamdiag.azurecr.io/whiskey:1.0.0.0
+biostreamdiag.azurecr.io/whiskey:1.0.0.1
 ```
 
 ## Repository
@@ -67,3 +73,7 @@ https://biostreamca@dev.azure.com/biostreamca/Core/_git/Whiskey
 ```
 
 GitHub is no longer the deployment target for this project.
+
+## Notes
+
+This model is intentionally stylized and lightweight for a landing-page POC. It is not a manufacturing, CAD, regulatory, or exact product-visualization asset.

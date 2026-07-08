@@ -47,7 +47,7 @@
     <p>to help turn a small sample into clearer results.</p>
   </div>
 
-  <div #deviceStage class="device-stage" aria-hidden="true">
+  <div #deviceStage class="device-stage">
     <div class="device-copy device-copy-left">
       <p class="eyebrow" data-copy-row="0">Connected results</p>
       <h2 data-copy-row="1">Review insights wherever you are.</h2>
@@ -63,162 +63,171 @@
       <div class="device-screen">
         <div class="screen-page" data-screen-page>
           <div class="screen-panel screen-panel-intro">
-            <div class="screen-hero-copy">
-              <p>It starts here</p>
-              <h3>Monitor signals</h3>
-              <span>with lab precision.</span>
+            <div class="app-welcome-card">
+              <div class="app-logo-mark">bt</div>
+              <h3>Welcome to biztrax</h3>
             </div>
           </div>
 
           <div class="screen-panel screen-panel-phone-dashboard">
-            <div class="screen-topbar">
-              <span>Health view</span>
-              <span>Synced</span>
-            </div>
-            <div class="screen-result-card">
-              <p>Signal summary</p>
-              <strong>Within focus range</strong>
-              <div class="screen-trend">
+            <header class="app-header">
+              <h3>Test Instructions</h3>
+              <p>General workflow</p>
+            </header>
+            <section class="app-instruction">
+              <h4>Prepare Your Sample</h4>
+              <p>
+                Place the prepared sample on the sensor well. The pipette can carry
+              </p>
+              <div class="app-fluid-stage">
+                @for (fluid of sampleFluids; track fluid) {
+                  <span #instructionFluid class="app-fluid">{{ fluid }}</span>
+                }
+              </div>
+              <div class="app-sensor-figure">
                 <span></span>
-                <span></span>
-                <span></span>
-                <span></span>
               </div>
-            </div>
-            <div class="screen-metric-grid">
-              <div>
-                <span>Cortisol</span>
-                <strong class="status-positive">Stable</strong>
-              </div>
-              <div>
-                <span>Inflammation</span>
-                <strong class="status-caution">Watch</strong>
-              </div>
-              <div>
-                <span>Kidney stress</span>
-                <strong class="status-positive">Clear</strong>
-              </div>
-              <div>
-                <span>Vitamin gaps</span>
-                <strong class="status-caution">Review</strong>
-              </div>
-            </div>
+              <p class="app-note">Keep the reader still while the sample is being read.</p>
+            </section>
           </div>
 
-          <div class="screen-panel screen-panel-tablet-dashboard">
-            <div class="screen-topbar">
-              <span>Health dashboard</span>
-              <span>4 markers</span>
-            </div>
-            <div class="screen-result-card">
-              <p>Personal readout</p>
-              <strong>Two signals need review</strong>
-              <div class="screen-trend">
-                <span></span>
-                <span></span>
-                <span></span>
-                <span></span>
+          <div class="screen-panel screen-panel-tablet-dashboard" data-screen-loading>
+            <header class="app-header">
+              <h3>Processing Your Test</h3>
+            </header>
+            <section class="app-processing">
+              <h4>Analyzing Measurement</h4>
+              <p>Please wait while we analyze your sample.</p>
+              <div class="app-progress-orb">
+                <svg class="app-progress-check" viewBox="0 0 48 48" aria-hidden="true">
+                  <path d="M13 25.5 21 33 36 16"></path>
+                </svg>
               </div>
-            </div>
-            <div class="screen-metric-grid screen-metric-grid-wide">
-              <div>
-                <span>Cortisol</span>
-                <strong class="status-positive">Stable</strong>
-              </div>
-              <div>
-                <span>Inflammation</span>
-                <strong class="status-caution">Watch</strong>
-              </div>
-              <div>
-                <span>Kidney stress</span>
-                <strong class="status-positive">Clear</strong>
-              </div>
-              <div>
-                <span>Vitamin gaps</span>
-                <strong class="status-caution">Review</strong>
-              </div>
-            </div>
-            <div class="screen-chart screen-tablet-chart">
-              <span></span>
-              <span></span>
-              <span></span>
-              <span></span>
-            </div>
+            </section>
           </div>
 
-          <div class="screen-panel screen-panel-laptop-research">
-            <div class="screen-topbar">
-              <span>Research view</span>
-              <span>42 samples</span>
-            </div>
-            <div class="screen-chart">
-              <span></span>
-              <span></span>
-              <span></span>
-              <span></span>
-              <span></span>
-            </div>
-            <div class="screen-table">
-              <span>Sample</span><span>Marker</span><span>Status</span>
-              <span>A-018</span><span>CRP</span><span>Review</span>
-              <span>A-022</span><span>TB</span><span>Clear</span>
-              <span>A-031</span><span>ALT</span><span>Trend</span>
-            </div>
+          <div class="screen-panel screen-panel-laptop-research" data-screen-result>
+            <header class="app-header">
+              <h3>Test Result</h3>
+            </header>
+            <section class="app-result">
+              <div class="app-result-main">
+                <h4>Analysis Complete</h4>
+                <p>Test Result</p>
+                <span data-result-time>Today</span>
+                <div class="app-result-card">
+                  <div>Calculated Result</div>
+                  <strong>2953.3901</strong>
+                </div>
+              </div>
+              <div class="app-result-insights">
+                <div>
+                  <span>Procedure</span>
+                  <strong>General sample workflow</strong>
+                </div>
+                <div>
+                  <span>Reader</span>
+                  <strong>Connected</strong>
+                </div>
+                <div>
+                  <span>Sensor</span>
+                  <strong>Processed</strong>
+                </div>
+                <div class="app-result-chart">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+              </div>
+            </section>
           </div>
 
           <div class="screen-panel screen-panel-desktop-research">
-            <div class="screen-topbar">
-              <span>Research workspace</span>
-              <span>Export ready</span>
-            </div>
-            <div class="screen-workspace">
-              <div class="screen-chart screen-chart-large">
-                <span></span>
+            <header class="app-header">
+              <h3>Dashboard</h3>
+            </header>
+            <section class="app-dashboard">
+              <div class="app-dashboard-hero">
+                <span>Latest Result</span>
+                <strong>2953.3901</strong>
+              </div>
+              <div class="app-dashboard-chart">
                 <span></span>
                 <span></span>
                 <span></span>
                 <span></span>
                 <span></span>
               </div>
-              <div class="screen-insight-stack">
+              <div class="app-dashboard-grid">
                 <div>
-                  <span>Panel match</span>
-                  <strong>96%</strong>
+                  <span>Previous</span>
+                  <strong>104.4467</strong>
                 </div>
                 <div>
-                  <span>Change from baseline</span>
-                  <strong>+8%</strong>
+                  <span>Baseline</span>
+                  <strong>1.0000</strong>
                 </div>
                 <div>
-                  <span>Follow-up window</span>
-                  <strong>7 days</strong>
+                  <span>Trend</span>
+                  <strong>Rising</strong>
+                </div>
+                <div>
+                  <span>Status</span>
+                  <strong>Saved</strong>
                 </div>
               </div>
-            </div>
-            <div class="screen-table">
-              <span>Sample</span><span>Marker</span><span>Status</span>
-              <span>A-044</span><span>CRP</span><span>Elevated</span>
-              <span>A-051</span><span>TB</span><span>Clear</span>
-              <span>A-063</span><span>B12</span><span>Low</span>
-            </div>
+              <div class="app-dashboard-details">
+                <div>
+                  <span>Recent workflow</span>
+                  <strong>Sample prepared, sensor read, result stored.</strong>
+                </div>
+                <div>
+                  <span>Reader status</span>
+                  <strong>Ready for next test</strong>
+                </div>
+                <div>
+                  <span>Review notes</span>
+                  <strong>Compare latest result with prior field runs.</strong>
+                </div>
+              </div>
+            </section>
           </div>
 
           <div class="screen-panel screen-panel-final">
-            <div class="screen-topbar">
-              <span>Focused sensors</span>
-              <span>Next</span>
-            </div>
-            <div class="screen-final-copy">
-              <p>One reader</p>
-              <h3>Explore focused sensors.</h3>
-              <span>Each sensor carries a specific test path.</span>
-            </div>
+            <section class="marketplace-cta">
+              <p>TraxReader development kit</p>
+              <h3>Bring focused sensing into your workflow.</h3>
+              <span>
+                A compact reader for prototyping portable sample workflows, guided tests, and
+                connected result capture.
+              </span>
+              <a
+                class="marketplace-buy"
+                href="https://www.bio-stream.ca/product-page/traxreader-development-kit"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Buy it now
+              </a>
+            </section>
           </div>
         </div>
       </div>
       <div class="device-stand"></div>
       <div class="device-keyboard"></div>
-      <div class="device-home"></div>
+    </div>
+
+    <div class="bluetooth-signal" data-bluetooth-signal aria-hidden="true">
+      <span class="bluetooth-core">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M12 3v18l6-6-6-5 6-5-6-6z" />
+          <path d="M6 7.5 18 16.5" />
+          <path d="M6 16.5 18 7.5" />
+        </svg>
+      </span>
+      <span></span>
+      <span></span>
     </div>
 
     <div class="device-copy device-copy-right">

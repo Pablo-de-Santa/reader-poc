@@ -36,18 +36,19 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   @ViewChild('confirmationCheck', { static: true }) private confirmationCheck!: ElementRef<SVGPathElement>;
   @ViewChildren('phrase') private phraseElements!: QueryList<ElementRef<HTMLElement>>;
   @ViewChildren('sampleFluid') private sampleFluidElements!: QueryList<ElementRef<HTMLElement>>;
+  @ViewChildren('instructionFluid') private instructionFluidElements!: QueryList<ElementRef<HTMLElement>>;
 
   readonly phrases = [
-    'cancer markers',
-    'TB indicators',
-    'cortisol',
-    'inflammation',
-    'hormone balance',
-    'vitamin gaps',
-    'kidney stress',
-    'liver signals',
-    'metabolic health',
-    'immune response',
+    'sample markers',
+    'health signals',
+    'wellness panels',
+    'focused sensors',
+    'guided testing',
+    'clearer results',
+    'connected reads',
+    'portable insight',
+    'many workflows',
+    'flexible testing',
   ];
 
   readonly sampleFluids = ['saliva', 'blood', 'urine', 'other bodily fluids'];
@@ -56,28 +57,39 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private readonly initialModelRotation = new THREE.Euler(0.26, -0.48, 0);
   private readonly scrollModelPosition = new THREE.Vector3(0, -0.08, 0);
   private readonly scrollModelRotation = new THREE.Euler(0.36, -0.08, 0);
-  private readonly cartridgeInsertedX = 1.33;
+  private readonly cartridgeInsertedX = 1.6;
   private readonly cartridgePulledX = 2.48;
-  private readonly cartridgeSlotY = 0.24;
-  private readonly cartridgeSlotZ = 0.285;
-  private readonly cartridgeWidthScale = 1.75;
+  private readonly cartridgeSlotY = 0.14;
+  private readonly cartridgeSlotZ = 0.015;
+  private readonly cartridgeLengthScale = 1.4;
+  private readonly cartridgeWidthScale = 1.7;
+  private readonly cartridgeHeightScale = 1.6;
+  private readonly cartridgeSampleX = 0.55;
+  private readonly sampleDropPairCenterX = -0.72;
   private readonly scrollSpinBackProgress = 0.055;
   private readonly centerSensorDisplayRotation = new THREE.Euler(Math.PI / 2 - 0.4, 0.5, 0);
 
   private scene!: THREE.Scene;
   private camera!: THREE.PerspectiveCamera;
   private renderer!: THREE.WebGLRenderer;
+  private nebulaBackground?: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
+  private nebulaUniforms?: {
+    uProgress: { value: number };
+    uTime: { value: number };
+    uAspect: { value: number };
+  };
+  private topLight?: THREE.SpotLight;
+  private frontFill?: THREE.DirectionalLight;
   private frameId = 0;
   private scrollTimeline?: gsap.core.Timeline;
   private scrollTriggerInstance?: ScrollTrigger;
   private phraseTimeline?: gsap.core.Timeline;
+  private openingOrientationTimeline?: gsap.core.Timeline;
   private topRotationRig?: THREE.Group;
   private model?: THREE.Group;
   private readerFallbackParts: THREE.Object3D[] = [];
   private readerMaterials: THREE.Material[] = [];
   private readerFade = { opacity: 1 };
-  private readerBlendPlane?: THREE.Mesh;
-  private readerBlendMaterial?: THREE.MeshBasicMaterial;
   private optimizedCartridgeTemplate?: THREE.Group;
   private sensorGroup?: THREE.Group;
   private sensorFallbackParts: THREE.Object3D[] = [];
@@ -173,6 +185,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       this.onResize();
       this.syncInteractionMode();
       ScrollTrigger.refresh();
+      this.runOpeningOrientationAnimation();
     });
     this.initialScrollResetId = window.setTimeout(() => this.resetScrollPosition(), 90);
   }
@@ -191,6 +204,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.scrollTriggerInstance?.kill();
     this.scrollTimeline?.kill();
     this.phraseTimeline?.kill();
+    this.openingOrientationTimeline?.kill();
     ScrollTrigger.normalizeScroll(false);
     this.renderer?.dispose();
   }
@@ -207,20 +221,24 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.scrollProgressTarget = 0;
     this.scrollTimeline?.progress(0);
     this.hero?.nativeElement.style.setProperty('--scroll-progress', '0');
+    if (this.nebulaUniforms) {
+      this.nebulaUniforms.uProgress.value = 0;
+    }
   }
 
   private initScene(): void {
     const host = this.canvasHost.nativeElement;
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color('#050507');
 
     const viewport = this.getViewportSize();
     this.camera = new THREE.PerspectiveCamera(34, viewport.width / viewport.height, 0.1, 100);
     this.camera.position.set(0, 0.72, 6.7);
     this.camera.lookAt(0, 0, 0);
+    this.scene.add(this.camera);
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    this.renderer.setClearColor(0x000000, 0);
     this.renderer.setPixelRatio(this.getRenderPixelRatio());
     this.renderer.setSize(viewport.width, viewport.height, false);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -233,11 +251,13 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.hero.nativeElement.style.cursor = 'grab';
     host.appendChild(this.renderer.domElement);
 
+    this.createNebulaBackground();
     this.scene.add(new THREE.AmbientLight('#ffffff', 0.16));
 
     const topLight = new THREE.SpotLight('#f4e5c4', 82, 15, Math.PI / 6.5, 0.52, 1.25);
     topLight.position.set(0, 5.6, 2.6);
     topLight.target.position.set(0, 0, 0);
+    this.topLight = topLight;
     this.scene.add(topLight, topLight.target);
 
     const rimLight = new THREE.DirectionalLight('#9fb1ff', 1.08);
@@ -246,6 +266,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
     const frontFill = new THREE.DirectionalLight('#ffffff', 0.48);
     frontFill.position.set(4, 1, 4);
+    this.frontFill = frontFill;
     this.scene.add(frontFill);
   }
 
@@ -276,6 +297,163 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.scene.add(particles);
   }
 
+  private runOpeningOrientationAnimation(): void {
+    if (!this.model || !this.topRotationRig || window.scrollY > 2) return;
+
+    this.openingOrientationTimeline?.kill();
+
+    const endPosition = this.getInitialModelPosition();
+    const endScale = this.getInitialModelScale();
+    const endRotation = this.getInitialModelRotation();
+    const startPosition = endPosition.clone().add(new THREE.Vector3(-0.16, 0.08, 0));
+    const startScale = endScale * 1.18;
+
+    this.topRotationRig.position.copy(startPosition);
+    this.topRotationRig.scale.setScalar(startScale);
+    this.topRotationRig.rotation.set(0, 0, 0);
+    this.model.rotation.set(0.48, -1.42, -0.08);
+
+    this.openingOrientationTimeline = gsap
+      .timeline({
+        defaults: { ease: 'power2.inOut' },
+        onComplete: () => {
+          this.model?.rotation.copy(endRotation);
+          this.topRotationRig?.position.copy(endPosition);
+          this.topRotationRig?.scale.setScalar(endScale);
+          this.syncInteractionMode();
+        },
+      })
+      .to(this.model.rotation, { x: endRotation.x, y: endRotation.y, z: endRotation.z, duration: 1.18 }, 0)
+      .to(this.topRotationRig.position, { x: endPosition.x, y: endPosition.y, z: endPosition.z, duration: 1.18 }, 0)
+      .to(this.topRotationRig.scale, { x: endScale, y: endScale, z: endScale, duration: 1.18 }, 0);
+  }
+
+  private createNebulaBackground(): void {
+    const viewport = this.getViewportSize();
+    this.nebulaUniforms = {
+      uProgress: { value: 0 },
+      uTime: { value: 0 },
+      uAspect: { value: viewport.width / viewport.height },
+    };
+
+    const material = new THREE.ShaderMaterial({
+      uniforms: this.nebulaUniforms,
+      depthTest: false,
+      depthWrite: false,
+      vertexShader: `
+        varying vec2 vUv;
+
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        precision highp float;
+
+        uniform float uProgress;
+        uniform float uTime;
+        uniform float uAspect;
+        varying vec2 vUv;
+
+        float softBlob(vec2 uv, vec2 center, vec2 radius, float rotation) {
+          vec2 p = uv - center;
+          float c = cos(rotation);
+          float s = sin(rotation);
+          p = mat2(c, -s, s, c) * p;
+          p.x *= uAspect;
+          float d = dot(p / radius, p / radius);
+          return exp(-d * 1.45);
+        }
+
+        float wave(vec2 uv, float shift) {
+          return sin((uv.x * 4.8 + uv.y * 2.2 + shift) * 3.14159) * 0.5 + 0.5;
+        }
+
+        void main() {
+          vec2 uv = vUv;
+          float p = smoothstep(0.0, 1.0, uProgress);
+          float early = smoothstep(0.0, 0.38, p);
+          float late = smoothstep(0.52, 1.0, p);
+          float middle = smoothstep(0.16, 0.48, p) * (1.0 - smoothstep(0.7, 1.0, p));
+          float beatA = sin(p * 110.84956) * 0.5 + 0.5;
+          float beatB = sin(p * 31.41593 + 1.7) * 0.5 + 0.5;
+          float beatC = sin(p * 25.13274 + 3.2) * 0.5 + 0.5;
+          beatA = smoothstep(0.12, 0.88, beatA);
+          beatB = smoothstep(0.16, 0.84, beatB);
+          beatC = smoothstep(0.18, 0.82, beatC);
+          float t = uTime * 0.05;
+
+          vec3 baseA = vec3(0.027, 0.018, 0.052);
+          vec3 baseB = vec3(0.014, 0.020, 0.040);
+          vec3 colorPink = mix(vec3(0.78, 0.25, 0.48), vec3(0.94, 0.41, 0.28), p);
+          vec3 colorViolet = mix(vec3(0.30, 0.15, 0.58), vec3(0.20, 0.12, 0.48), p);
+          vec3 colorCyan = mix(vec3(0.20, 0.66, 0.72), vec3(0.46, 0.86, 0.64), p);
+          vec3 colorGold = mix(vec3(0.85, 0.67, 0.28), vec3(0.68, 0.86, 0.35), p);
+
+          vec2 leftStart = vec2(0.06, 0.32);
+          vec2 leftMid = vec2(0.58, 0.48);
+          vec2 leftEnd = vec2(0.18, 0.64);
+          vec2 rightStart = vec2(0.94, 0.42);
+          vec2 rightMid = vec2(0.38, 0.3);
+          vec2 rightEnd = vec2(0.82, 0.25);
+          vec2 lowerStart = vec2(0.68, 0.74);
+          vec2 lowerMid = vec2(0.28, 0.58);
+          vec2 lowerEnd = vec2(0.62, 0.82);
+
+          vec2 sideSweep = vec2((sin(p * 12.56637 - 0.55) * 0.5 + 0.5 - 0.5) * 0.22, 0.0);
+          vec2 scrollDrift = vec2((beatA - 0.5) * 0.14, (beatB - 0.5) * 0.06);
+          vec2 counterDrift = vec2((beatC - 0.5) * -0.13, (beatA - 0.5) * 0.045);
+          vec2 leftCenter = mix(mix(leftStart, leftMid, early), leftEnd, late) + scrollDrift + vec2(sin(t) * 0.018, cos(t * 0.8) * 0.012);
+          vec2 rightCenter = mix(mix(rightStart, rightMid, early), rightEnd, late) + counterDrift + vec2(cos(t * 0.9) * 0.014, sin(t * 0.7) * 0.014);
+          vec2 lowerCenter = mix(mix(lowerStart, lowerMid, early), lowerEnd, late) + vec2((beatB - 0.5) * 0.1, (beatC - 0.5) * 0.045);
+          leftCenter += sideSweep;
+          rightCenter -= sideSweep * 0.72;
+          lowerCenter += sideSweep * 0.44;
+          vec2 bridgeCenter = mix(vec2(0.42, 0.49), vec2(0.62, 0.39), middle) + sideSweep * 0.28 + vec2((beatA - beatC) * 0.07, (beatB - 0.5) * -0.035);
+
+          vec2 leftRadius = mix(mix(vec2(0.44, 0.36), vec2(0.34, 0.5), early), vec2(0.64, 0.34), late) + vec2((beatB - 0.5) * 0.09, (beatC - 0.5) * 0.055);
+          vec2 rightRadius = mix(mix(vec2(0.5, 0.34), vec2(0.36, 0.44), early), vec2(0.58, 0.28), late) + vec2((beatA - 0.5) * 0.075, (beatB - 0.5) * 0.05);
+          vec2 lowerRadius = mix(mix(vec2(0.58, 0.28), vec2(0.44, 0.34), early), vec2(0.72, 0.24), late) + vec2((beatC - 0.5) * 0.08, (beatA - 0.5) * 0.045);
+          vec2 bridgeRadius = mix(vec2(0.34, 0.18), vec2(0.46, 0.15), middle) + vec2((beatB - 0.5) * 0.06, (beatC - 0.5) * 0.035);
+
+          float left = softBlob(uv, leftCenter, leftRadius, -0.58 + p * 1.35 + (beatA - 0.5) * 0.28);
+          float right = softBlob(uv, rightCenter, rightRadius, 0.42 - p * 1.05 + (beatB - 0.5) * -0.22);
+          float lower = softBlob(uv, lowerCenter, lowerRadius, 0.22 + p * 0.72 + (beatC - 0.5) * 0.18);
+          float bridge = softBlob(uv, bridgeCenter, bridgeRadius, -0.08 + p * 0.58 + (beatA - beatB) * 0.16);
+          float upperMist = softBlob(
+            uv,
+            mix(vec2(0.32, 0.2), vec2(0.78, 0.16), late) + sideSweep * 0.36 + vec2((beatB - 0.5) * 0.1, (beatA - 0.5) * -0.035),
+            mix(vec2(0.62, 0.18), vec2(0.48, 0.24), middle) + vec2((beatC - 0.5) * 0.07, 0.0),
+            -0.35 + p * 0.44 + (beatC - 0.5) * 0.2
+          );
+
+          float texture = wave(uv, p * 0.8 + t) * 0.08 + wave(uv.yx, p * 1.3 - t * 0.7) * 0.05;
+          vec3 color = mix(baseA, baseB, uv.y);
+          color += colorPink * left * 0.20;
+          color += colorCyan * right * 0.18;
+          color += colorGold * lower * 0.08;
+          color += colorViolet * bridge * 0.16;
+          color += mix(colorViolet, colorPink, p) * upperMist * 0.08;
+          color += (colorPink + colorCyan) * bridge * texture;
+
+          float vignette = smoothstep(0.92, 0.24, distance(uv, vec2(0.5, 0.52)));
+          color *= 0.62 + vignette * 0.58;
+
+          gl_FragColor = vec4(color, 1.0);
+        }
+      `,
+    });
+
+    const background = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
+    background.name = 'scroll_shift_nebula_background';
+    background.position.set(0, 0, -24);
+    background.renderOrder = -1000;
+    this.nebulaBackground = background;
+    this.camera.add(background);
+    this.updateNebulaBackgroundSize();
+  }
+
   private createReaderModel(): void {
     const shell = this.createMaterial('#f4efe2', 0.38, 0.18);
     const warmWhite = this.createMaterial('#fff7e8', 0.34, 0.16);
@@ -295,7 +473,6 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.model.name = 'reader_model';
     this.model.rotation.copy(this.getInitialModelRotation());
     this.topRotationRig.add(this.model);
-    this.createReaderBlendPlane();
 
     this.model.add(this.roundedBox('reader_body_shell', [4.35, 0.72, 1.28], [0, 0, 0], shell, 0.33));
     this.model.add(this.roundedBox('reader_top_gray_panel', [2.25, 0.08, 1.02], [-0.54, 0.38, 0], gray, 0.23));
@@ -316,7 +493,8 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.model.add(aperture);
 
     this.sensorGroup = this.createSensorGroup({ white: warmWhite, charcoal, blue });
-    this.sensorGroup.position.set(this.cartridgeInsertedX, this.cartridgeSlotY, 0);
+    this.sensorGroup.position.set(this.cartridgePulledX, this.cartridgeSlotY, 0);
+    this.sensorGroup.visible = false;
     this.model.add(this.sensorGroup);
     this.sensorFallbackParts = [...this.sensorGroup.children];
     this.setFallbackSensorVisibility(false);
@@ -327,32 +505,14 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.loadCartridgeAsset();
   }
 
-  private createReaderBlendPlane(): void {
-    if (!this.topRotationRig) return;
-
-    this.readerBlendMaterial = new THREE.MeshBasicMaterial({
-      color: '#050507',
-      transparent: true,
-      opacity: 0,
-      depthTest: false,
-      depthWrite: false,
-    });
-
-    this.readerBlendPlane = new THREE.Mesh(new THREE.PlaneGeometry(5.4, 5.4), this.readerBlendMaterial);
-    this.readerBlendPlane.name = 'reader_blend_to_background_plane';
-    this.readerBlendPlane.position.set(0, 0, 1.2);
-    this.readerBlendPlane.renderOrder = 40;
-    this.readerBlendPlane.visible = false;
-    this.topRotationRig.add(this.readerBlendPlane);
-  }
-
   private loadReaderAsset(): void {
     if (!this.model) return;
 
     const manager = new THREE.LoadingManager();
     manager.setURLModifier((url) => {
-      if (url.endsWith('Case%20r12.bin') || url.endsWith('Case r12.bin')) {
-        return this.getAssetUrl('assets/models/reader/reader.bin');
+      const normalizedUrl = decodeURIComponent(url);
+      if (normalizedUrl.endsWith('Case r12.bin') || normalizedUrl.endsWith('reader.bin')) {
+        return this.getAssetUrl('assets/models/reader/Case r12 white with logo.bin');
       }
 
       return url;
@@ -360,7 +520,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
     const loader = new GLTFLoader(manager);
     loader.load(
-      this.getAssetUrl('assets/models/reader/reader.gltf'),
+      this.getAssetUrl('assets/models/reader/Case r12 white with logo.gltf'),
       (gltf) => {
         if (!this.model) return;
 
@@ -457,13 +617,20 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
     const box = new THREE.Box3().setFromObject(asset);
     const size = box.getSize(new THREE.Vector3());
-    const center = box.getCenter(new THREE.Vector3());
     const longestSide = Math.max(size.x, size.y, size.z);
     const targetLongestSide = 1.62;
     const scale = longestSide > 0 ? targetLongestSide / longestSide : 1;
 
-    asset.position.set(0.55 - center.x * scale, -0.02 - center.y * scale, this.cartridgeSlotZ - center.z * scale);
-    asset.scale.set(scale, scale * this.cartridgeWidthScale, scale);
+    asset.scale.set(
+      scale * this.cartridgeLengthScale,
+      scale * this.cartridgeWidthScale,
+      scale * this.cartridgeHeightScale,
+    );
+    asset.updateMatrixWorld(true);
+
+    const scaledBox = new THREE.Box3().setFromObject(asset);
+    const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
+    asset.position.set(0.55 - scaledCenter.x, -0.02 - scaledCenter.y, this.cartridgeSlotZ - scaledCenter.z);
     this.prepareAssetMaterials(asset);
 
     return asset;
@@ -505,10 +672,18 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     const readerCopyText = Array.from(readerCopy.children);
     const sampleCopy = this.sampleCopy.nativeElement;
     const sampleFluidNodes = this.sampleFluidElements.toArray().map((item) => item.nativeElement);
+    const instructionFluidNodes = this.instructionFluidElements.toArray().map((item) => item.nativeElement);
     const deviceStage = this.deviceStage.nativeElement;
     const sensorCta = this.sensorCta.nativeElement;
     const deviceCopy = deviceStage.querySelectorAll('.device-copy');
     const screenPage = deviceStage.querySelector<HTMLElement>('[data-screen-page]');
+    const screenPanels = Array.from(deviceStage.querySelectorAll<HTMLElement>('.screen-panel'));
+    const progressOrb = deviceStage.querySelector<HTMLElement>('.app-progress-orb');
+    const progressCheck = deviceStage.querySelector<SVGPathElement>('.app-progress-check path');
+    const progressCheckLength = progressCheck?.getTotalLength() ?? 1;
+    const resultTime = deviceStage.querySelector<HTMLElement>('[data-result-time]');
+    const bluetoothSignal = deviceStage.querySelector<HTMLElement>('[data-bluetooth-signal]');
+    const bluetoothRings = bluetoothSignal ? Array.from(bluetoothSignal.querySelectorAll('span:not(.bluetooth-core)')) : [];
     const deviceCopyItems = Array.from(deviceStage.querySelectorAll<HTMLElement>('[data-copy-row]')).sort(
       (first, second) => {
         const rowDifference = Number(first.dataset['copyRow']) - Number(second.dataset['copyRow']);
@@ -540,30 +715,50 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.sensorStarMotion.fall = 0;
     this.sensorMessageMotion.progress = 0;
     this.sensorFieldReveal.progress = 0;
+    this.hero.nativeElement.classList.remove('is-product-cta');
+    this.sensorGroup.position.set(this.getSensorEntryX(), this.cartridgeSlotY, 0);
+    this.sensorGroup.rotation.set(0, 0, 0);
+    this.sensorGroup.visible = false;
     gsap.set(this.topRotationRig, { visible: true });
     gsap.set(this.model, { visible: true });
-    gsap.set(this.readerBlendPlane ?? {}, { visible: false });
-    if (this.readerBlendMaterial) {
-      gsap.set(this.readerBlendMaterial, { opacity: 0 });
-    }
     this.isDnaSpinning = false;
     this.isDnaSolid = false;
     this.setDnaOpacity(0);
     gsap.set(deviceStage, {
       autoAlpha: 0,
-      '--device-w': () => this.getDeviceFrame('phone').width,
-      '--device-h': () => this.getDeviceFrame('phone').height,
+      filter: 'blur(0px)',
+      y: '0vh',
+      '--device-w': () => this.getBannerPhoneFrame().width,
+      '--device-h': () => this.getBannerPhoneFrame().height,
+      '--screen-type-scale': () => this.getDeviceContentScale('phone'),
       '--device-r': '1.5rem',
       '--device-x': '0vw',
-      '--device-y': '0vh',
+      '--device-y': () => this.getBannerPhoneOffsetY(),
       '--stand-o': 0,
       '--keyboard-o': 0,
-      '--home-o': 1,
-      '--screen-r': '1rem',
+      '--home-o': 0,
+      '--screen-r': '1.5rem',
+      '--screen-bg': '#eee8ef',
+      '--device-shell-bg': 'rgba(241, 236, 224, 0.92)',
+      '--device-frame-border': 'rgba(241, 236, 224, 0.92)',
+      '--device-shadow-o': 0.42,
+      '--device-inner-shadow-o': 0.18,
     });
-    gsap.set(deviceCopy, { autoAlpha: 1, filter: 'blur(0px)', y: '-10vh' });
+    gsap.set(deviceCopy, { autoAlpha: 0, filter: 'blur(0px)', y: '-10vh' });
     gsap.set(deviceCopyItems, { autoAlpha: 0, filter: 'blur(12px)', y: 18 });
-    gsap.set(screenPage, { autoAlpha: 0, filter: 'blur(10px)', yPercent: 0 });
+    gsap.set(screenPage, { autoAlpha: 0, filter: 'blur(10px)' });
+    gsap.set(screenPanels, { autoAlpha: 0, filter: 'blur(14px)' });
+    if (screenPanels[0]) {
+      gsap.set(screenPanels[0], { autoAlpha: 1, filter: 'blur(0px)' });
+    }
+    gsap.set(progressOrb, { '--analysis-progress': '0deg' });
+    if (progressCheck) {
+      progressCheck.setAttribute('stroke-dasharray', `${progressCheckLength}`);
+      progressCheck.setAttribute('stroke-dashoffset', `${progressCheckLength}`);
+    }
+    gsap.set(progressCheck, { autoAlpha: 0 });
+    gsap.set(bluetoothSignal, { autoAlpha: 0, scale: 0.84 });
+    gsap.set(bluetoothRings, { opacity: 0, scale: 0.42 });
     gsap.set(sensorCta, { autoAlpha: 0, filter: 'blur(18px)', '--cta-y': '20px' });
     gsap.set(readerCopy, { autoAlpha: 1, filter: 'none', x: 0, y: 0 });
     gsap.set(readerCopyText, { autoAlpha: 1, filter: 'blur(0px)' });
@@ -571,6 +766,10 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     gsap.set(sampleFluidNodes, { autoAlpha: 0, filter: 'blur(10px)', yPercent: 36 });
     if (sampleFluidNodes[0]) {
       gsap.set(sampleFluidNodes[0], { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0 });
+    }
+    gsap.set(instructionFluidNodes, { autoAlpha: 0, filter: 'blur(10px)', yPercent: 36 });
+    if (instructionFluidNodes[0]) {
+      gsap.set(instructionFluidNodes[0], { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0 });
     }
     this.sensorFieldIsOpaque = false;
     this.readerFade.opacity = 1;
@@ -627,112 +826,190 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
         0,
       )
       .to(readerCopyText, { autoAlpha: 0, filter: 'blur(10px)', duration: 0.34, ease: 'power2.in' }, 0)
-      .to(sampleCopy, { autoAlpha: 1, filter: 'blur(0px)', y: 0, duration: 0.32, ease: 'power2.out' }, 0.24)
-      .to(sampleFluidNodes[0] ?? {}, { autoAlpha: 0, filter: 'blur(10px)', yPercent: -32, duration: 0.16 }, 0.58)
-      .to(sampleFluidNodes[1] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0, duration: 0.18 }, 0.62)
-      .to(sampleFluidNodes[1] ?? {}, { autoAlpha: 0, filter: 'blur(10px)', yPercent: -32, duration: 0.16 }, 0.9)
-      .to(sampleFluidNodes[2] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0, duration: 0.18 }, 0.94)
-      .to(sampleFluidNodes[2] ?? {}, { autoAlpha: 0, filter: 'blur(10px)', yPercent: -32, duration: 0.16 }, 1.22)
-      .to(sampleFluidNodes[3] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0, duration: 0.18 }, 1.26)
-      .to(this.sensorGroup.position, { x: this.cartridgePulledX, y: this.cartridgeSlotY, z: 0, duration: 0.28 }, 0.62)
-      .to(this.sensorGroup.rotation, { x: 0, y: 0, z: 0, duration: 0.28 }, 0.62)
-      .set(pipette ?? {}, { visible: true }, 0.86)
-      .to(pipette?.position ?? {}, { y: 0.88, duration: 0.28, ease: 'power2.out' }, 0.86)
-      .set(droplet ?? {}, { visible: true }, 1.16)
-      .set(drop ?? {}, { visible: true }, 1.16)
-      .to(drop?.scale ?? {}, { x: 0.68, y: 0.68, z: 0.68, duration: 0.04 }, 1.16)
-      .to(drop?.position ?? {}, { y: 0.055, duration: 0.18, ease: 'power1.in' }, 1.18)
-      .set(puddle ?? {}, { visible: true }, 1.28)
-      .to(drop?.scale ?? {}, { x: 0.24, y: 0.18, z: 0.24, duration: 0.07 }, 1.29)
-      .to(puddle?.scale ?? {}, { x: 1, y: 1, z: 1, duration: 0.1 }, 1.29)
-      .set(drop ?? {}, { visible: false }, 1.35)
-      .to(pipette?.position ?? {}, { y: 3.6, duration: 0.22, ease: 'power2.in' }, 1.38)
-      .set(pipette ?? {}, { visible: false }, 1.6)
-      .to(puddle?.scale ?? {}, { x: 0, y: 0, z: 0, duration: 0.08 }, 1.46)
-      .set(puddle ?? {}, { visible: false }, 1.56)
-      .set(droplet ?? {}, { visible: false }, 1.56)
-      .to(this.sensorGroup.position, { x: this.cartridgeInsertedX, y: this.cartridgeSlotY, z: 0, duration: 0.28 }, 1.58)
-      .to(sampleCopy, { autoAlpha: 0, filter: 'blur(12px)', y: -14, duration: 0.24, ease: 'power2.in' }, 1.66)
-      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getPostSensorModelPosition(), 0.58), 1.86)
-      .to(this.topRotationRig.rotation, { x: 0, y: 0, z: 0, duration: 0.58, ease: 'power2.inOut' }, 1.86)
+      .to(deviceStage, { autoAlpha: 1, duration: 0.28, ease: 'power2.out' }, 0.62)
+      .to(
+        deviceStage,
+        {
+          '--device-w': () => this.getBannerPhoneFrame().width,
+          '--device-h': () => this.getBannerPhoneFrame().height,
+          '--screen-type-scale': () => this.getDeviceContentScale('phone'),
+          '--device-r': '1.5rem',
+          '--device-x': '0vw',
+          '--device-y': () => this.getBannerPhoneOffsetY(),
+          '--stand-o': 0,
+          '--keyboard-o': 0,
+          '--home-o': 0,
+          '--screen-r': '1.5rem',
+          '--screen-bg': '#eee8ef',
+          '--device-shell-bg': 'rgba(241, 236, 224, 0.92)',
+          duration: 0.4,
+          ease: 'power2.out',
+        },
+        0.62,
+      )
+      .to(screenPage, { autoAlpha: 0.96, filter: 'blur(0px)', duration: 0.34, ease: 'power2.out' }, 0.74)
+      .to(bluetoothSignal, { autoAlpha: 1, scale: 1, duration: 0.18, ease: 'power2.out' }, 0.98)
+      .to(
+        bluetoothRings,
+        { opacity: 0.8, scale: 1.2, duration: 0.52, stagger: 0.16, ease: 'power2.out' },
+        1.02,
+      )
+      .to(bluetoothRings, { opacity: 0, duration: 0.2, stagger: 0.16, ease: 'power2.in' }, 1.42)
+      .to(bluetoothSignal, { autoAlpha: 0, scale: 1.12, duration: 0.18, ease: 'power2.in' }, 1.64)
+      .set(this.sensorGroup, { visible: true }, 1.68)
+      .set(this.sensorGroup.position, { x: () => this.getSensorEntryX(), y: this.cartridgeSlotY, z: 0 }, 1.68)
+      .to(this.sensorGroup.position, { x: this.cartridgeInsertedX, y: this.cartridgeSlotY, z: 0, duration: 1.12, ease: 'power1.inOut' }, 1.68)
+      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getSampleDropModelPosition(this.cartridgeInsertedX), 1.12), 1.68)
+      .to(this.sensorGroup.rotation, { x: 0, y: 0, z: 0, duration: 0.28 }, 1.68)
+      .to(screenPanels[0] ?? {}, { autoAlpha: 0, filter: 'blur(12px)', duration: 0.2, ease: 'power2.in' }, 2.92)
+      .to(screenPanels[1] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', duration: 0.3, ease: 'power2.out' }, 3.02)
+      .to(instructionFluidNodes[0] ?? {}, { autoAlpha: 0, filter: 'blur(10px)', yPercent: -32, duration: 0.16 }, 3.58)
+      .to(instructionFluidNodes[1] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0, duration: 0.18 }, 3.62)
+      .to(instructionFluidNodes[1] ?? {}, { autoAlpha: 0, filter: 'blur(10px)', yPercent: -32, duration: 0.16 }, 3.86)
+      .to(instructionFluidNodes[2] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0, duration: 0.18 }, 3.9)
+      .to(instructionFluidNodes[2] ?? {}, { autoAlpha: 0, filter: 'blur(10px)', yPercent: -32, duration: 0.16 }, 4.14)
+      .to(instructionFluidNodes[3] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0, duration: 0.18 }, 4.18)
+      .set(pipette?.position ?? {}, { y: 9.5 }, 3.5)
+      .set(pipette ?? {}, { visible: true }, 3.5)
+      .to(pipette?.position ?? {}, { y: 0.88, duration: 0.72, ease: 'power2.out' }, 3.5)
+      .to(this.topLight ?? {}, { intensity: 44, duration: 0.28, ease: 'power2.out' }, 3.7)
+      .to(this.frontFill ?? {}, { intensity: 0.22, duration: 0.28, ease: 'power2.out' }, 3.7)
+      .set(droplet ?? {}, { visible: true }, 4.22)
+      .set(drop ?? {}, { visible: true }, 4.22)
+      .to(drop?.scale ?? {}, { x: 0.68, y: 0.68, z: 0.68, duration: 0.04 }, 4.22)
+      .to(drop?.position ?? {}, { y: 0.055, duration: 0.18, ease: 'power1.in' }, 4.24)
+      .set(puddle ?? {}, { visible: true }, 4.34)
+      .to(drop?.scale ?? {}, { x: 0.24, y: 0.18, z: 0.24, duration: 0.07 }, 4.35)
+      .to(puddle?.scale ?? {}, { x: 1, y: 1, z: 1, duration: 0.1 }, 4.35)
+      .set(drop ?? {}, { visible: false }, 4.41)
+      .to(pipette?.position ?? {}, { y: 5.8, duration: 0.32, ease: 'power2.in' }, 4.46)
+      .set(pipette ?? {}, { visible: false }, 4.8)
+      .to(puddle?.scale ?? {}, { x: 0, y: 0, z: 0, duration: 0.08 }, 4.52)
+      .set(puddle ?? {}, { visible: false }, 4.62)
+      .set(droplet ?? {}, { visible: false }, 4.62)
+      .to(screenPanels[1] ?? {}, { autoAlpha: 0, filter: 'blur(12px)', duration: 0.2, ease: 'power2.in' }, 4.72)
+      .to(screenPanels[2] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', duration: 0.3, ease: 'power2.out' }, 4.82)
+      .to(progressOrb ?? {}, { '--analysis-progress': '360deg', duration: 0.98, ease: 'power1.inOut' }, 4.84)
+      .call(() => this.updateResultTimestamp(resultTime), undefined, 5.82)
+      .to(progressCheck ?? {}, { autoAlpha: 1, duration: 0.01, ease: 'none' }, 5.82)
+      .to(
+        progressCheck ?? {},
+        { attr: { 'stroke-dashoffset': 0 }, duration: 0.72, ease: 'power1.inOut' },
+        5.84,
+      )
+      .to(this.topLight ?? {}, { intensity: 82, duration: 0.26, ease: 'power2.inOut' }, 5)
+      .to(this.frontFill ?? {}, { intensity: 0.48, duration: 0.26, ease: 'power2.inOut' }, 5)
+      .to(screenPanels[2] ?? {}, { autoAlpha: 0, filter: 'blur(12px)', duration: 0.2, ease: 'power2.in' }, 6.64)
+      .to(screenPanels[3] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', duration: 0.3, ease: 'power2.out' }, 6.74)
+      .to(screenPanels[3] ?? {}, { autoAlpha: 0, filter: 'blur(12px)', duration: 0.24, ease: 'power2.in' }, 7.2)
+      .to(screenPanels[4] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', duration: 0.34, ease: 'power2.out' }, 7.3)
+      .to(screenPanels[4] ?? {}, { autoAlpha: 0, filter: 'blur(12px)', duration: 0.24, ease: 'power2.in' }, 8.42)
+      .to(
+        deviceStage,
+        {
+          '--device-shell-bg': 'rgba(241, 236, 224, 0)',
+          '--device-frame-border': 'rgba(241, 236, 224, 0)',
+          '--screen-bg': 'rgba(238, 232, 239, 0)',
+          '--keyboard-o': 0,
+          '--stand-o': 0,
+          '--device-shadow-o': 0,
+          '--device-inner-shadow-o': 0,
+          duration: 0.38,
+          ease: 'power2.inOut',
+        },
+        8.5,
+      )
+      .call(() => {
+        this.hero.nativeElement.classList.toggle('is-product-cta', (tl.scrollTrigger?.direction ?? 1) > 0);
+      }, undefined, 8.9)
+      .to(screenPanels[5] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', duration: 0.34, ease: 'power2.out' }, 8.96)
+      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getCenteredInsertedModelPosition(), 0.58), 3.56)
+      .to(this.topRotationRig.rotation, { x: 0, y: 0, z: 0, duration: 0.58, ease: 'power2.inOut' }, 3.56)
       .to(
         this.model.rotation,
         {
-          x: () => this.getPostSensorModelRotation().x,
-          y: () => this.getPostSensorModelRotation().y,
-          z: () => this.getPostSensorModelRotation().z,
+          x: () => this.getSensorSequenceModelRotation().x,
+          y: () => this.getSensorSequenceModelRotation().y,
+          z: () => this.getSensorSequenceModelRotation().z,
           duration: 0.58,
           ease: 'power2.inOut',
         },
-        1.86,
+        3.56,
       )
       .to(
         this.topRotationRig.scale,
         {
-          x: () => this.getPostSensorModelScale(),
-          y: () => this.getPostSensorModelScale(),
-          z: () => this.getPostSensorModelScale(),
+          x: () => this.getSensorSequenceModelScale(),
+          y: () => this.getSensorSequenceModelScale(),
+          z: () => this.getSensorSequenceModelScale(),
           duration: 0.58,
           ease: 'power2.inOut',
         },
-        1.86,
+        3.56,
       )
       .to(deviceStage, { autoAlpha: 1, duration: 0.28, ease: 'power2.out' }, 2.24)
       .to(screenPage, { autoAlpha: 0.96, filter: 'blur(0px)', duration: 0.38, ease: 'power2.out' }, 2.36)
       .to(
         deviceCopyItems,
         {
-          autoAlpha: 1,
-          filter: 'blur(0px)',
-          y: 0,
-          duration: 0.45,
-          stagger: (index: number) => Math.floor(index / 2) * 0.22,
-          ease: 'power2.out',
+          autoAlpha: 0,
+          duration: 0.01,
         },
         2.42,
       )
       .to(
         deviceStage,
         {
-          '--device-w': () => this.getDeviceFrame('phone').width,
-          '--device-h': () => this.getDeviceFrame('phone').height,
+          '--device-w': () => this.getBannerPhoneFrame().width,
+          '--device-h': () => this.getBannerPhoneFrame().height,
+          '--screen-type-scale': () => this.getDeviceContentScale('phone'),
           '--device-r': '1.5rem',
           '--device-x': '0vw',
-          '--device-y': '0vh',
+          '--device-y': () => this.getBannerPhoneOffsetY(),
           '--stand-o': 0,
           '--keyboard-o': 0,
-          '--home-o': 1,
-          '--screen-r': '1rem',
+          '--home-o': 0,
+          '--screen-r': '1.5rem',
+          '--screen-bg': '#eee8ef',
+          '--device-shell-bg': 'rgba(241, 236, 224, 0.92)',
+          '--device-frame-border': 'rgba(241, 236, 224, 0.92)',
+          '--device-shadow-o': 0.42,
+          '--device-inner-shadow-o': 0.18,
           duration: 0.4,
           ease: 'power2.out',
         },
         2.24,
       )
-      .to(screenPage, { yPercent: -100, duration: 0.7, ease: 'power2.inOut' }, 2.9)
       .to(
         deviceStage,
         {
-          '--device-w': () => this.getDeviceFrame('tablet').width,
-          '--device-h': () => this.getDeviceFrame('tablet').height,
-          '--device-r': '1.35rem',
-          '--device-y': '0vh',
+          '--device-w': () => this.getBannerPhoneFrame().width,
+          '--device-h': () => this.getBannerPhoneFrame().height,
+          '--screen-type-scale': () => this.getDeviceContentScale('phone'),
+          '--device-r': '1.5rem',
+          '--device-y': () => this.getBannerPhoneOffsetY(),
           '--stand-o': 0,
           '--keyboard-o': 0,
-          '--home-o': 1,
-          '--screen-r': '0.9rem',
-          duration: 0.7,
+          '--home-o': 0,
+          '--screen-r': '1.5rem',
+          '--screen-bg': '#eee8ef',
+          '--device-shell-bg': 'rgba(241, 236, 224, 0.92)',
+          '--device-frame-border': 'rgba(241, 236, 224, 0.92)',
+          '--device-shadow-o': 0.42,
+          '--device-inner-shadow-o': 0.18,
+          duration: 0.01,
           ease: 'power2.inOut',
         },
         3.62,
       )
-      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getDeviceModelPosition('tablet'), 0.7), 3.62)
+      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getCenteredInsertedModelPosition(), 0.01), 3.62)
       .to(
         this.model.rotation,
         {
-          x: () => this.getDeviceModelRotation('tablet').x,
-          y: () => this.getDeviceModelRotation('tablet').y,
-          z: () => this.getDeviceModelRotation('tablet').z,
-          duration: 0.7,
+          x: () => this.getSensorSequenceModelRotation().x,
+          y: () => this.getSensorSequenceModelRotation().y,
+          z: () => this.getSensorSequenceModelRotation().z,
+          duration: 0.01,
           ease: 'power2.inOut',
         },
         3.62,
@@ -740,35 +1017,40 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       .to(
         this.topRotationRig.scale,
         {
-          x: () => this.getDeviceModelScale('tablet'),
-          y: () => this.getDeviceModelScale('tablet'),
-          z: () => this.getDeviceModelScale('tablet'),
-          duration: 0.7,
+          x: () => this.getSensorSequenceModelScale(),
+          y: () => this.getSensorSequenceModelScale(),
+          z: () => this.getSensorSequenceModelScale(),
+          duration: 0.01,
           ease: 'power2.inOut',
         },
         3.62,
       )
       .to(dna?.position ?? {}, this.vectorTweenDynamic(() => this.getDeviceDnaPosition('tablet'), 0.7), 3.62)
       .to(this, { dnaDisplayScale: () => this.getDeviceDnaScale('tablet'), duration: 0.7, ease: 'power2.inOut' }, 3.62)
-      .to(screenPage, { yPercent: -200, duration: 0.72, ease: 'power2.inOut' }, 3.62)
       .to(deviceCopy, { y: '-10vh', duration: 3.6, ease: 'none' }, 3.18)
       .to(
         deviceStage,
         {
           '--device-w': () => this.getDeviceFrame('laptop').width,
           '--device-h': () => this.getDeviceFrame('laptop').height,
+          '--screen-type-scale': () => this.getDeviceContentScale('laptop'),
           '--device-r': '0.75rem',
           '--device-y': '-3vh',
           '--stand-o': 0,
           '--keyboard-o': 1,
           '--home-o': 0,
           '--screen-r': '0.12rem',
+          '--screen-bg': '#eee8ef',
+          '--device-shell-bg': 'rgba(241, 236, 224, 0.92)',
+          '--device-frame-border': 'rgba(241, 236, 224, 0.92)',
+          '--device-shadow-o': 0.42,
+          '--device-inner-shadow-o': 0.18,
           duration: 0.7,
           ease: 'power2.inOut',
         },
-        4.72,
+        7.55,
       )
-      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getDeviceModelPosition('laptop'), 0.7), 4.72)
+      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getDeviceModelPosition('laptop'), 0.7), 7.55)
       .to(
         this.model.rotation,
         {
@@ -778,7 +1060,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           duration: 0.7,
           ease: 'power2.inOut',
         },
-        4.72,
+        7.55,
       )
       .to(
         this.topRotationRig.scale,
@@ -789,74 +1071,46 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           duration: 0.7,
           ease: 'power2.inOut',
         },
-        4.72,
+        7.55,
       )
-      .to(dna?.position ?? {}, this.vectorTweenDynamic(() => this.getDeviceDnaPosition('laptop'), 0.7), 4.72)
-      .to(this, { dnaDisplayScale: () => this.getDeviceDnaScale('laptop'), duration: 0.7, ease: 'power2.inOut' }, 4.72)
-      .to(screenPage, { yPercent: -300, duration: 0.72, ease: 'power2.inOut' }, 4.72)
-      .to(
-        deviceStage,
-        {
-          '--device-w': () => this.getDeviceFrame('desktop').width,
-          '--device-h': () => this.getDeviceFrame('desktop').height,
-          '--device-r': '0.9rem',
-          '--device-y': '-1vh',
-          '--stand-o': 1,
-          '--keyboard-o': 0,
-          '--home-o': 0,
-          '--screen-r': '0.12rem',
-          duration: 0.75,
-          ease: 'power2.inOut',
-        },
-        5.82,
-      )
-      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getDeviceModelPosition('desktop'), 0.75), 5.82)
-      .to(
-        this.model.rotation,
-        {
-          x: () => this.getDeviceModelRotation('desktop').x,
-          y: () => this.getDeviceModelRotation('desktop').y,
-          z: () => this.getDeviceModelRotation('desktop').z,
-          duration: 0.75,
-          ease: 'power2.inOut',
-        },
-        5.82,
-      )
+      .to(dna?.position ?? {}, this.vectorTweenDynamic(() => this.getDeviceDnaPosition('laptop'), 0.7), 7.55)
+      .to(this, { dnaDisplayScale: () => this.getDeviceDnaScale('laptop'), duration: 0.7, ease: 'power2.inOut' }, 7.55)
+      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getFinalDeviceModelPosition(), 0.72), 8.58)
       .to(
         this.topRotationRig.scale,
         {
-          x: () => this.getDeviceModelScale('desktop'),
-          y: () => this.getDeviceModelScale('desktop'),
-          z: () => this.getDeviceModelScale('desktop'),
-          duration: 0.75,
+          x: () => this.getFinalDeviceModelScale(),
+          y: () => this.getFinalDeviceModelScale(),
+          z: () => this.getFinalDeviceModelScale(),
+          duration: 0.72,
           ease: 'power2.inOut',
         },
-        5.82,
+        8.58,
       )
-      .to(dna?.position ?? {}, this.vectorTweenDynamic(() => this.getDeviceDnaPosition('desktop'), 0.75), 5.82)
-      .to(this, { dnaDisplayScale: () => this.getDeviceDnaScale('desktop'), duration: 0.75, ease: 'power2.inOut' }, 5.82)
-      .to(screenPage, { yPercent: -400, duration: 0.72, ease: 'power2.inOut' }, 5.82)
-      .to(screenPage, { yPercent: -500, duration: 0.72, ease: 'power2.inOut' }, 6.78)
-      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getFinalDeviceModelPosition(), 0.72), 6.78)
-      .to(deviceStage, { autoAlpha: 0, filter: 'blur(18px)', duration: 0.44, ease: 'power2.in' }, 7.7)
-      .call(() => this.setReaderOpacity(1), undefined, 7.7)
-      .set(this.readerBlendPlane ?? {}, { visible: true }, 7.7)
-      .to(this.readerBlendMaterial ?? {}, { opacity: 1, duration: 0.18, ease: 'power2.in' }, 7.7)
-      .to(this.topRotationRig.scale, { x: 0.08, y: 0.08, z: 0.08, duration: 0.28, ease: 'power3.in' }, 7.78)
-      .set(this.model ?? {}, { visible: false }, 7.98)
-      .to(this.readerBlendMaterial ?? {}, { opacity: 0, duration: 0.22, ease: 'power2.out' }, 7.98)
-      .set(this.topRotationRig, { visible: false }, 8.2)
-      .set(this.readerBlendPlane ?? {}, { visible: false }, 8.2)
-      .set(this.readerBlendMaterial ?? {}, { opacity: 0 }, 8.2)
-      .to(dustMaterial ?? {}, { opacity: 0.88, size: 0.018, duration: 0.5, ease: 'power2.out' }, 7.86)
+      .to(deviceStage, { y: '-118vh', autoAlpha: 0, duration: 0.68, ease: 'power2.inOut' }, 10.1)
+      .to(
+        this.topRotationRig.position,
+        { ...this.vectorTweenDynamic(() => this.getSceneExitModelPosition(), 0.68), ease: 'power2.inOut' },
+        10.1,
+      )
+      .call(() => {
+        this.hero.nativeElement.classList.toggle('is-product-cta', (tl.scrollTrigger?.direction ?? 1) < 0);
+      }, undefined, 10.72)
+      .call(() => this.setReaderOpacity(1), undefined, 10.16)
+      .set(deviceStage, { autoAlpha: 0, y: '0vh' }, 10.8)
+      .set(this.model ?? {}, { visible: false }, 10.8)
+      .set(this.topRotationRig, { visible: false }, 10.8)
+      .to(dustMaterial ?? {}, { opacity: 0.88, size: 0.018, duration: 0.5, ease: 'power2.out' }, 10.32)
+      .to(this.topLight ?? {}, { intensity: 38, duration: 0.42, ease: 'power2.out' }, 10.32)
+      .to(this.frontFill ?? {}, { intensity: 0.16, duration: 0.42, ease: 'power2.out' }, 10.32)
       .to(
         this.sensorConstellationMaterial ?? {},
         { opacity: 0.96, size: 0.025, duration: 0.45, ease: 'power2.out' },
-        7.92,
+        10.38,
       )
-      .to(this.sensorStarMotion, { progress: 1, duration: 0.95, ease: 'none' }, 8.05)
-      .to(this.sensorConstellationMaterial ?? {}, { opacity: 0.26, size: 0.012, duration: 0.34, ease: 'power2.inOut' }, 8.92)
-      .call(() => this.prepareMaterialsForReveal(this.centerSensorMaterials), undefined, 8.9)
+      .to(this.sensorStarMotion, { progress: 1, duration: 0.95, ease: 'none' }, 10.51)
+      .to(this.sensorConstellationMaterial ?? {}, { opacity: 0.26, size: 0.012, duration: 0.34, ease: 'power2.inOut' }, 11.38)
+      .call(() => this.prepareMaterialsForReveal(this.centerSensorMaterials), undefined, 11.36)
       .to(
         this.centerSensorReveal,
         {
@@ -865,12 +1119,12 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           ease: 'power2.out',
           onUpdate: () => this.setMaterialsOpacity(this.centerSensorMaterials, this.centerSensorReveal.opacity),
         },
-        8.92,
+        11.38,
       )
-      .to(this.sensorFillMaterial ?? {}, { opacity: 0, duration: 0.01, ease: 'none' }, 8.92)
-      .to(this.sensorConstellationMaterial ?? {}, { opacity: 0, duration: 0.22, ease: 'power2.in' }, 9.42)
-      .to(this.sensorMessageMaterial ?? {}, { opacity: 0.92, size: 0.016, duration: 0.35, ease: 'power2.out' }, 9.28)
-      .to(this.sensorMessageMotion, { progress: 1, duration: 1.02, ease: 'none' }, 9.34)
+      .to(this.sensorFillMaterial ?? {}, { opacity: 0, duration: 0.01, ease: 'none' }, 11.38)
+      .to(this.sensorConstellationMaterial ?? {}, { opacity: 0, duration: 0.22, ease: 'power2.in' }, 11.42)
+      .to(this.sensorMessageMaterial ?? {}, { opacity: 0.92, size: 0.016, duration: 0.35, ease: 'power2.out' }, 11.48)
+      .to(this.sensorMessageMotion, { progress: 1, duration: 1.02, ease: 'none' }, 11.54)
       .to(
         this.centerSensor?.rotation ?? {},
         {
@@ -880,11 +1134,11 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           duration: 0.86,
           ease: 'power2.inOut',
         },
-        9.32,
+        11.52,
       )
-      .to(this.sensorMessageMaterial ?? {}, { opacity: 0, duration: 0.26, ease: 'power2.out' }, 10.22)
-      .to(this.sensorMessageTextMaterial ?? {}, { opacity: 0.96, duration: 0.34, ease: 'power2.out' }, 10.28)
-      .to(this.sensorMessageTextMaterial ?? {}, { opacity: 0, duration: 0.34, ease: 'power2.in' }, 10.7)
+      .to(this.sensorMessageMaterial ?? {}, { opacity: 0, duration: 0.26, ease: 'power2.out' }, 12.42)
+      .to(this.sensorMessageTextMaterial ?? {}, { opacity: 0.96, duration: 0.34, ease: 'power2.out' }, 12.48)
+      .to(this.sensorMessageTextMaterial ?? {}, { opacity: 0, duration: 0.34, ease: 'power2.in' }, 12.9)
       .to(
         this.centerSensor?.rotation ?? {},
         {
@@ -894,12 +1148,12 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           duration: 0.56,
           ease: 'power2.inOut',
         },
-        10.24,
+        12.44,
       )
-      .to(this.sensorMessageMaterial ?? {}, { opacity: 0.72, size: 0.014, duration: 0.14, ease: 'power2.out' }, 11.04)
-      .to(this.sensorMessageMotion, { progress: 0, duration: 0.64, ease: 'power2.in' }, 11.12)
-      .to(this.sensorMessageMaterial ?? {}, { opacity: 0, size: 0.011, duration: 0.42, ease: 'power2.in' }, 11.36)
-      .to(this.centerSensor?.position ?? {}, this.vectorTweenDynamic(() => this.centerSensor?.userData['fieldPosition'] ?? new THREE.Vector3(), 0.6), 10.86)
+      .to(this.sensorMessageMaterial ?? {}, { opacity: 0.72, size: 0.014, duration: 0.14, ease: 'power2.out' }, 13.04)
+      .to(this.sensorMessageMotion, { progress: 0, duration: 0.64, ease: 'power2.in' }, 13.12)
+      .to(this.sensorMessageMaterial ?? {}, { opacity: 0, size: 0.011, duration: 0.42, ease: 'power2.in' }, 13.36)
+      .to(this.centerSensor?.position ?? {}, this.vectorTweenDynamic(() => this.centerSensor?.userData['fieldPosition'] ?? new THREE.Vector3(), 0.6), 12.86)
       .to(
         this.centerSensor?.rotation ?? {},
         {
@@ -909,7 +1163,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           duration: 0.6,
           ease: 'power2.inOut',
         },
-        10.86,
+        12.86,
       )
       .to(
         this.centerSensor?.scale ?? {},
@@ -920,12 +1174,14 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           duration: 0.6,
           ease: 'power2.inOut',
         },
-        10.86,
+        12.86,
       )
-      .call(() => this.prepareMaterialsForReveal(this.sensorFieldMaterials), undefined, 10.9)
-      .to(this.sensorFieldReveal, { progress: 1, duration: 0.9, ease: 'none' }, 10.96)
-      .to(this.sensorStarMotion, { fall: 1, duration: 0.9, ease: 'none' }, 12.06)
-      .to(sensorCta, { autoAlpha: 1, filter: 'blur(0px)', '--cta-y': '0px', duration: 0.62, ease: 'power3.out' }, 12.08);
+      .call(() => this.prepareMaterialsForReveal(this.sensorFieldMaterials), undefined, 12.9)
+      .to(this.sensorFieldReveal, { progress: 1, duration: 0.9, ease: 'none' }, 12.96)
+      .to(this.sensorStarMotion, { fall: 1, duration: 0.9, ease: 'none' }, 14.06)
+      .to(this.topLight ?? {}, { intensity: 82, duration: 0.46, ease: 'power2.inOut' }, 14.96)
+      .to(this.frontFill ?? {}, { intensity: 0.48, duration: 0.46, ease: 'power2.inOut' }, 14.96)
+      .to(sensorCta, { autoAlpha: 1, filter: 'blur(0px)', '--cta-y': '0px', duration: 0.9, ease: 'none' }, 14.06);
   }
 
   private setupPhraseAnimation(): void {
@@ -966,6 +1222,13 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
         })
         .set(phraseNode, { autoAlpha: 0 });
     });
+  }
+
+  private updateResultTimestamp(target: HTMLElement | null): void {
+    if (!target) return;
+
+    const time = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    target.textContent = `Today at ${time}`;
   }
 
   private createSensorGroup(materials: {
@@ -1030,7 +1293,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
     this.pipetteGroup = new THREE.Group();
     this.pipetteGroup.name = 'pipette_group';
-    this.pipetteGroup.position.set(0.18, 3.6, 0);
+    this.pipetteGroup.position.set(this.cartridgeSampleX, 3.6, 0);
     this.pipetteGroup.rotation.set(0, 0, 0);
     this.pipetteGroup.visible = false;
     this.sensorGroup.add(this.pipetteGroup);
@@ -1064,7 +1327,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
     this.dropletGroup = new THREE.Group();
     this.dropletGroup.name = 'solution_droplet';
-    this.dropletGroup.position.set(0.18, 0, 0);
+    this.dropletGroup.position.set(this.cartridgeSampleX, 0, 0);
     this.dropletGroup.visible = false;
     this.sensorGroup.add(this.dropletGroup);
 
@@ -1208,7 +1471,9 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     );
     this.centerSensor.userData['fieldScale'] = centerLayout?.scale ?? 0.38;
     this.centerSensor.userData['baseRotation'] = centerFieldRotation.clone();
-    this.centerSensor.userData['fallY'] = -3.15;
+    this.centerSensor.userData['fallX'] = centerFieldPosition.x;
+    this.centerSensor.userData['fallY'] = -4.2;
+    this.centerSensor.userData['fallZ'] = centerFieldPosition.z + 0.72;
     this.centerSensor.visible = true;
     this.centerSensorMaterials = this.collectMaterials(this.centerSensor);
     this.setMaterialsOpacity(this.centerSensorMaterials, 0);
@@ -1222,11 +1487,11 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       if (index === centerLayoutIndex) return;
 
       const sensor = this.createStandaloneSensorModel(layout.scale);
-      const gatherStartPosition = this.createSensorGatherStartPosition(index);
+      const gatherStartPosition = this.createSensorGatherStartPosition(layout.position, index);
       const gatherStartRotation = new THREE.Euler(
-        layout.rotation.x + (Math.random() - 0.5) * 5.4,
-        layout.rotation.y + (Math.random() - 0.5) * 5.8,
-        layout.rotation.z + (Math.random() - 0.5) * 5.6,
+        layout.rotation.x + (Math.random() - 0.5) * 0.5,
+        layout.rotation.y + (Math.random() - 0.5) * 0.42,
+        layout.rotation.z + (Math.random() - 0.5) * 0.5,
       );
       sensor.position.copy(gatherStartPosition);
       sensor.rotation.copy(gatherStartRotation);
@@ -1236,13 +1501,16 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       sensor.userData['baseRotation'] = layout.rotation.clone();
       sensor.userData['fieldRotation'] = layout.rotation.clone();
       sensor.userData['floatPhase'] = Math.random() * Math.PI * 2;
+      sensor.userData['fallStart'] = layout.fallStart;
       sensor.userData['fallRotation'] = new THREE.Euler(
         layout.rotation.x + (Math.random() - 0.5) * 4.6,
         layout.rotation.y + (Math.random() - 0.5) * 5.2,
         layout.rotation.z + (Math.random() - 0.5) * 4.8,
       );
       sensor.userData['startY'] = layout.position.y;
-      sensor.userData['fallY'] = -2.9 - Math.random() * 0.9 - index * 0.002;
+      sensor.userData['fallX'] = layout.fallPosition.x;
+      sensor.userData['fallY'] = layout.fallPosition.y;
+      sensor.userData['fallZ'] = layout.fallPosition.z;
       this.sensorFieldRevealStarts.push(layout.position.y > 0.46 ? 0.62 + Math.random() * 0.2 : Math.random() * 0.5);
       const sensorMaterials = this.collectMaterials(sensor);
       this.setMaterialsOpacity(sensorMaterials, 0);
@@ -1423,28 +1691,48 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     };
   }
 
-  private getSensorFieldLayout(): Array<{ position: THREE.Vector3; rotation: THREE.Euler; scale: number }> {
+  private getSensorFieldLayout(): Array<{
+    position: THREE.Vector3;
+    rotation: THREE.Euler;
+    scale: number;
+    fallStart: number;
+    fallPosition: THREE.Vector3;
+  }> {
     const compact = this.getViewportSize().width < 760;
-    const columns = compact ? 6 : 11;
-    const rows = compact ? 6 : 7;
-    const gapX = compact ? 0.78 : 0.9;
-    const gapY = compact ? 0.5 : 0.56;
-    const baseScale = compact ? 0.32 : 0.38;
-    const yBias = compact ? -0.36 : -0.2;
-    const layout: Array<{ position: THREE.Vector3; rotation: THREE.Euler; scale: number }> = [];
+    const columns = compact ? 5 : 8;
+    const rows = compact ? 5 : 5;
+    const gapX = compact ? 1.02 : 1.18;
+    const gapY = compact ? 0.66 : 0.72;
+    const baseScale = compact ? 0.28 : 0.32;
+    const yBias = compact ? -0.22 : -0.08;
+    const layout: Array<{
+      position: THREE.Vector3;
+      rotation: THREE.Euler;
+      scale: number;
+      fallStart: number;
+      fallPosition: THREE.Vector3;
+    }> = [];
 
     for (let row = 0; row < rows; row++) {
       for (let column = 0; column < columns; column++) {
         const x = (column - (columns - 1) / 2) * gapX;
         const y = (row - (rows - 1) / 2) * gapY + yBias;
+        const rowFromBottom = rows - row - 1;
+        const columnFromCenter = column - (columns - 1) / 2;
+        const fallStart = rowFromBottom / Math.max(1, rows - 1) * 0.34 + (column % 3) * 0.026;
+        const fallX = x + columnFromCenter * 0.2 + (row % 2 === 0 ? -0.08 : 0.08);
+        const fallY = -4.05 - rowFromBottom * 0.32;
+        const fallZ = 0.28 + row * 0.17 + (column % 3) * 0.06;
         layout.push({
           position: new THREE.Vector3(x, y, -0.04 + ((row * columns + column) % 5) * 0.018),
           rotation: new THREE.Euler(
-            0.05 + (row - (rows - 1) / 2) * 0.018,
-            (column - (columns - 1) / 2) * 0.045,
-            (row - (rows - 1) / 2) * 0.025,
+            this.centerSensorDisplayRotation.x - 0.08 + (row - (rows - 1) / 2) * 0.01,
+            this.centerSensorDisplayRotation.y * 0.28 + columnFromCenter * 0.018,
+            (row - (rows - 1) / 2) * 0.018,
           ),
           scale: baseScale,
+          fallStart,
+          fallPosition: new THREE.Vector3(fallX, fallY, fallZ),
         });
       }
     }
@@ -1452,23 +1740,17 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     return layout;
   }
 
-  private createSensorGatherStartPosition(index: number): THREE.Vector3 {
+  private createSensorGatherStartPosition(fieldPosition: THREE.Vector3, index: number): THREE.Vector3 {
     const compact = this.getViewportSize().width < 760;
-    const edge = index % 4;
-    const xSpread = compact ? 4.1 : 5.8;
-    const ySpread = compact ? 2.8 : 3.5;
+    const laneJitter = compact ? 0.05 : 0.07;
+    const verticalJitter = compact ? 0.08 : 0.1;
+    const depthOffset = compact ? 0.9 : 1.18;
 
-    if (edge === 0) {
-      return new THREE.Vector3(-3.9 - Math.random() * 1.2, -0.2 + (Math.random() - 0.5) * ySpread, -0.6 + Math.random() * 1.2);
-    }
-    if (edge === 1) {
-      return new THREE.Vector3(3.9 + Math.random() * 1.2, -0.2 + (Math.random() - 0.5) * ySpread, -0.6 + Math.random() * 1.2);
-    }
-    if (edge === 2) {
-      return new THREE.Vector3((Math.random() - 0.5) * xSpread, 2.75 + Math.random() * 0.9, -0.6 + Math.random() * 1.2);
-    }
-
-    return new THREE.Vector3((Math.random() - 0.5) * xSpread, -2.9 - Math.random() * 0.9, -0.6 + Math.random() * 1.2);
+    return new THREE.Vector3(
+      fieldPosition.x + (Math.random() - 0.5) * laneJitter,
+      fieldPosition.y + (Math.random() - 0.5) * verticalJitter,
+      fieldPosition.z - depthOffset - Math.random() * 0.42,
+    );
   }
 
   private createSensorStarTargets(count: number): Float32Array {
@@ -1934,6 +2216,9 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     if (this.particles) {
       this.particles.rotation.y += this.isPointerDown ? 0.002 : 0.001;
     }
+    if (this.nebulaUniforms) {
+      this.nebulaUniforms.uTime.value = performance.now() * 0.001;
+    }
 
     this.updateSensorConstellation();
     this.updateSensorMessage();
@@ -2034,9 +2319,12 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       const gatherStartPosition = sensor.userData['gatherStartPosition'] as THREE.Vector3 | undefined;
       const fieldPosition = sensor.userData['fieldPosition'] as THREE.Vector3 | undefined;
       const fallRotation = sensor.userData['fallRotation'] as THREE.Euler | undefined;
-      const startY = sensor.userData['startY'] as number | undefined;
+      const fallX = sensor.userData['fallX'] as number | undefined;
       const fallY = sensor.userData['fallY'] as number | undefined;
-      const fall = gsap.parseEase('power2.in')(this.sensorStarMotion.fall);
+      const fallZ = sensor.userData['fallZ'] as number | undefined;
+      const fallStart = sensor.userData['fallStart'] as number | undefined;
+      const rawFall = this.getSensorFallProgress(fallStart ?? 0);
+      const fall = gsap.parseEase('power2.in')(rawFall);
       const gather = this.getSensorFieldItemRevealProgress(index, this.sensorFieldItems.length);
 
       if (fieldPosition && gatherStartPosition && fall <= 0.001) {
@@ -2060,10 +2348,16 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
         );
       }
 
-      if (fieldPosition && typeof startY === 'number' && typeof fallY === 'number' && fall > 0.001) {
-        sensor.position.x = fieldPosition.x;
-        sensor.position.y = THREE.MathUtils.lerp(startY, fallY, fall);
-        sensor.position.z = fieldPosition.z;
+      if (
+        fieldPosition &&
+        typeof fallX === 'number' &&
+        typeof fallY === 'number' &&
+        typeof fallZ === 'number' &&
+        fall > 0.001
+      ) {
+        sensor.position.x = THREE.MathUtils.lerp(fieldPosition.x, fallX, fall);
+        sensor.position.y = THREE.MathUtils.lerp(fieldPosition.y, fallY, fall);
+        sensor.position.z = THREE.MathUtils.lerp(fieldPosition.z, fallZ, fall);
       }
     });
 
@@ -2076,10 +2370,20 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     const fieldPosition = this.centerSensor.userData['fieldPosition'] as THREE.Vector3 | undefined;
     const fieldRotation = this.centerSensor.userData['fieldRotation'] as THREE.Euler | undefined;
     const fallRotation = this.centerSensor.userData['fallRotation'] as THREE.Euler | undefined;
+    const fallX = this.centerSensor.userData['fallX'] as number | undefined;
     const fallY = this.centerSensor.userData['fallY'] as number | undefined;
-    if (!fieldPosition || !fieldRotation || !fallRotation || typeof fallY !== 'number') return;
+    const fallZ = this.centerSensor.userData['fallZ'] as number | undefined;
+    if (
+      !fieldPosition ||
+      !fieldRotation ||
+      !fallRotation ||
+      typeof fallX !== 'number' ||
+      typeof fallY !== 'number' ||
+      typeof fallZ !== 'number'
+    ) return;
 
-    const fall = gsap.parseEase('power2.in')(this.sensorStarMotion.fall);
+    const rawFall = this.getSensorFallProgress(0.18);
+    const fall = gsap.parseEase('power2.in')(rawFall);
     if (fall <= 0.001) {
       if (this.sensorFieldReveal.progress > 0.98) {
         const baseRotation = this.centerSensor.userData['baseRotation'] as THREE.Euler | undefined;
@@ -2091,14 +2395,18 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
-    this.centerSensor.position.x = fieldPosition.x;
+    this.centerSensor.position.x = THREE.MathUtils.lerp(fieldPosition.x, fallX, fall);
     this.centerSensor.position.y = THREE.MathUtils.lerp(fieldPosition.y, fallY, fall);
-    this.centerSensor.position.z = fieldPosition.z;
+    this.centerSensor.position.z = THREE.MathUtils.lerp(fieldPosition.z, fallZ, fall);
     this.centerSensor.rotation.set(
       THREE.MathUtils.lerp(fieldRotation.x, fallRotation.x, fall),
       THREE.MathUtils.lerp(fieldRotation.y, fallRotation.y, fall),
       THREE.MathUtils.lerp(fieldRotation.z, fallRotation.z, fall),
     );
+  }
+
+  private getSensorFallProgress(start: number): number {
+    return THREE.MathUtils.clamp((this.sensorStarMotion.fall - start) / Math.max(0.001, 1 - start), 0, 1);
   }
 
   private updateSensorFieldReveal(): void {
@@ -2446,6 +2754,10 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     const visualProgress = this.scrollProgressCurrent;
     this.scrollTimeline.progress(visualProgress);
     this.hero.nativeElement.style.setProperty('--scroll-progress', visualProgress.toFixed(4));
+    this.syncProductCtaLayer(visualProgress);
+    if (this.nebulaUniforms) {
+      this.nebulaUniforms.uProgress.value = visualProgress;
+    }
 
     if (visualProgress > 0.0008) {
       this.disableTopInteraction();
@@ -2467,6 +2779,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.camera.updateProjectionMatrix();
     this.renderer.setPixelRatio(this.getRenderPixelRatio());
     this.renderer.setSize(viewport.width, viewport.height, false);
+    this.updateNebulaBackgroundSize();
     this.scrollTimeline?.invalidate();
     if (this.topRotationRig && window.scrollY <= 2) {
       this.topRotationRig.position.copy(this.getInitialModelPosition());
@@ -2491,11 +2804,79 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     return Math.min(window.devicePixelRatio, window.innerWidth < 900 ? 1 : 1.5);
   }
 
+  private updateNebulaBackgroundSize(): void {
+    if (!this.nebulaBackground || !this.nebulaUniforms) return;
+
+    const distance = Math.abs(this.nebulaBackground.position.z);
+    const height = 2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) * distance;
+    const width = height * this.camera.aspect;
+
+    this.nebulaBackground.scale.set(width, height, 1);
+    this.nebulaUniforms.uAspect.value = this.camera.aspect;
+  }
+
   private getViewportSize(): { width: number; height: number } {
     return {
       width: Math.max(320, Math.round(window.visualViewport?.width ?? window.innerWidth)),
       height: Math.max(480, Math.round(window.visualViewport?.height ?? window.innerHeight)),
     };
+  }
+
+  private syncProductCtaLayer(progress: number): void {
+    const duration = this.scrollTimeline?.duration() ?? 1;
+    const timelineTime = progress * duration;
+    this.hero.nativeElement.classList.toggle('is-product-cta', timelineTime >= 8.9 && timelineTime <= 10.72);
+  }
+
+  private getScaledFrameSize(aspect: number, maxWidthRatio: number, maxHeightRatio: number): { width: number; height: number } {
+    const viewport = this.getViewportSize();
+    const maxWidth = viewport.width * maxWidthRatio;
+    const maxHeight = viewport.height * maxHeightRatio;
+    let width = maxHeight * aspect;
+    let height = maxHeight;
+
+    if (width > maxWidth) {
+      width = maxWidth;
+      height = width / aspect;
+    }
+
+    return {
+      width: Math.round(width),
+      height: Math.round(height),
+    };
+  }
+
+  private getScaledFrame(aspect: number, maxWidthRatio: number, maxHeightRatio: number): { width: string; height: string } {
+    const frame = this.getScaledFrameSize(aspect, maxWidthRatio, maxHeightRatio);
+
+    return {
+      width: `${frame.width}px`,
+      height: `${frame.height}px`,
+    };
+  }
+
+  private getDeviceContentScale(kind: 'desktop' | 'laptop' | 'phone'): string {
+    const viewport = this.getViewportSize();
+    const compact = viewport.width < 760;
+    const short = viewport.height < 680;
+    const frame =
+      kind === 'desktop'
+        ? this.getScaledFrameSize(16 / 9, compact ? 0.88 : 0.58, short ? 0.64 : 0.7)
+        : kind === 'laptop'
+          ? this.getScaledFrameSize(16 / 10, compact ? 0.94 : 0.74, short ? 0.66 : 0.72)
+          : this.getScaledFrameSize(9 / 16, compact ? 0.64 : 0.25, short ? 0.52 : 0.62);
+
+    const divisor =
+      kind === 'desktop'
+        ? { width: 57, height: 32 }
+        : kind === 'laptop'
+          ? { width: 48, height: 30 }
+          : { width: 20.5, height: 36.5 };
+    const scale = Math.min(frame.width / divisor.width, frame.height / divisor.height);
+    const min = kind === 'phone' ? 11 : 11;
+    const max = kind === 'desktop' ? 28 : kind === 'laptop' ? 26 : 22;
+
+    return `${THREE.MathUtils.clamp(scale, min, max).toFixed(2)}px`;
   }
 
   private getInitialModelPosition(): THREE.Vector3 {
@@ -2518,16 +2899,20 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
     if (portraitProgress > 0) {
       return new THREE.Vector3(
-        THREE.MathUtils.lerp(-0.12, -1.72, portraitProgress),
-        THREE.MathUtils.lerp(-0.14, -0.58, portraitProgress),
+        THREE.MathUtils.lerp(0, -0.36, portraitProgress),
+        THREE.MathUtils.lerp(-1.48, -1.66, portraitProgress),
         0,
       );
     }
 
-    if (width < 760) return new THREE.Vector3(0.08, -0.14, 0);
-    if (width < 1100) return new THREE.Vector3(0.06, -0.12, 0);
-    if (width < 1400) return new THREE.Vector3(0.04, -0.1, 0);
-    return this.scrollModelPosition;
+    if (width < 760) return new THREE.Vector3(0.02, -1.62, 0);
+    if (width < 1100) return new THREE.Vector3(0.02, -1.5, 0);
+    if (width < 1400) return new THREE.Vector3(0, -1.44, 0);
+    return new THREE.Vector3(0, -1.4, 0);
+  }
+
+  private getSampleDropModelPosition(cartridgeX: number): THREE.Vector3 {
+    return this.getSensorSequenceModelPosition();
   }
 
   private getScrollModelPosition(): THREE.Vector3 {
@@ -2544,7 +2929,18 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   }
 
   private getSensorSequenceModelScale(): number {
-    return 1;
+    const width = this.getViewportSize().width;
+    if (width < 760) return 0.72;
+    if (width < 1100) return 0.66;
+    return 0.62;
+  }
+
+  private getSensorEntryX(): number {
+    return this.cartridgePulledX + (this.getViewportSize().width < 760 ? 3.2 : 5.4);
+  }
+
+  private getCenteredInsertedModelPosition(): THREE.Vector3 {
+    return this.getSensorSequenceModelPosition();
   }
 
   private getPostSensorModelPosition(): THREE.Vector3 {
@@ -2574,12 +2970,14 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private getSensorSequenceModelRotation(): THREE.Euler {
     const portraitProgress = this.getPortraitProgress();
 
-    if (portraitProgress <= 0) return this.scrollModelRotation;
+    const straightRotation = new THREE.Euler(this.initialModelRotation.x, 0, 0);
+
+    if (portraitProgress <= 0) return straightRotation;
 
     return new THREE.Euler(
-      THREE.MathUtils.lerp(this.scrollModelRotation.x, 0.34, portraitProgress),
-      THREE.MathUtils.lerp(this.scrollModelRotation.y, -0.1, portraitProgress),
-      THREE.MathUtils.lerp(this.scrollModelRotation.z, 0.04, portraitProgress),
+      THREE.MathUtils.lerp(straightRotation.x, 0.34, portraitProgress),
+      THREE.MathUtils.lerp(straightRotation.y, -0.1, portraitProgress),
+      THREE.MathUtils.lerp(straightRotation.z, 0.04, portraitProgress),
     );
   }
 
@@ -2593,7 +2991,8 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   }
 
   private isMobileLayout(): boolean {
-    return this.getViewportSize().width <= 768;
+    const viewport = this.getViewportSize();
+    return viewport.width <= 900 || viewport.height > viewport.width;
   }
 
   private getAnalysisModelPosition(): THREE.Vector3 {
@@ -2625,38 +3024,41 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     const short = viewport.height < 680;
 
     if (kind === 'desktop') {
-      return {
-        width: compact ? '82vw' : '54vw',
-        height: short ? '64vh' : '70vh',
-      };
+      return this.getScaledFrame(16 / 9, compact ? 0.88 : 0.58, short ? 0.64 : 0.7);
     }
 
     if (kind === 'laptop') {
-      return {
-        width: compact ? '74vw' : '46vw',
-        height: short ? '50vh' : '54vh',
-      };
+      return this.getScaledFrame(16 / 10, compact ? 0.94 : 0.74, short ? 0.66 : 0.72);
     }
 
     if (kind === 'tablet') {
-      return {
-        width: compact ? '42vw' : '26vw',
-        height: short ? '62vh' : '66vh',
-      };
+      return this.getScaledFrame(3 / 4, compact ? 0.5 : 0.32, short ? 0.64 : 0.68);
     }
 
-    return {
-      width: compact ? '29vw' : '17vw',
-      height: short ? '54vh' : '58vh',
-    };
+    return this.getScaledFrame(9 / 16, compact ? 0.6 : 0.24, short ? 0.56 : 0.64);
+  }
+
+  private getBannerPhoneFrame(): { width: string; height: string } {
+    const viewport = this.getViewportSize();
+    const compact = viewport.width < 760;
+    const short = viewport.height < 680;
+
+    return this.getScaledFrame(9 / 16, compact ? 0.64 : 0.25, short ? 0.52 : 0.62);
+  }
+
+  private getBannerPhoneOffsetY(): string {
+    const viewport = this.getViewportSize();
+    if (viewport.width < 760) return '-15vh';
+    if (viewport.height < 680) return '-15vh';
+    return '-18vh';
   }
 
   private getDeviceModelPosition(kind: 'desktop' | 'laptop' | 'tablet' | 'phone'): THREE.Vector3 {
     const width = this.getViewportSize().width;
     const compactOffset = width < 760 ? 0.02 : 0;
     const positions = {
-      desktop: new THREE.Vector3(-0.18 + compactOffset, 0.08, 0),
-      laptop: new THREE.Vector3(-0.18 + compactOffset, 0.02, 0),
+      desktop: new THREE.Vector3(0 + compactOffset, 0.08, 0),
+      laptop: new THREE.Vector3(0 + compactOffset, 0.08, 0),
       tablet: new THREE.Vector3(-0.06 + compactOffset, 0.11, 0),
       phone: new THREE.Vector3(-0.05 + compactOffset, -0.18, 0),
     };
@@ -2665,8 +3067,16 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   }
 
   private getFinalDeviceModelPosition(): THREE.Vector3 {
-    const position = this.getDeviceModelPosition('desktop').clone();
-    position.y += this.getViewportSize().width < 760 ? 0.28 : 0.36;
+    const viewport = this.getViewportSize();
+    if (viewport.width < 760) return new THREE.Vector3(0, 0.08, 0);
+    if (viewport.width < 1100) return new THREE.Vector3(0, 0.08, 0);
+
+    return new THREE.Vector3(0, 0.08, 0);
+  }
+
+  private getSceneExitModelPosition(): THREE.Vector3 {
+    const position = this.getFinalDeviceModelPosition();
+    position.y += this.getViewportSize().width < 760 ? 3.4 : 4.15;
     return position;
   }
 
@@ -2676,6 +3086,14 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     }
 
     return this.initialModelRotation;
+  }
+
+  private getFinalDeviceModelScale(): number {
+    const viewport = this.getViewportSize();
+    if (viewport.width < 760) return 0.56;
+    if (viewport.width < 1100) return 0.58;
+
+    return 0.6;
   }
 
   private getDeviceDnaPosition(kind: 'desktop' | 'laptop' | 'tablet' | 'phone'): THREE.Vector3 {
