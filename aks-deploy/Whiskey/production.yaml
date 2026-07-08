@@ -35,7 +35,7 @@ spec:
     spec:
       containers:
         - name: whiskey
-          image: biostreamdiag.azurecr.io/whiskey:1.0.0.0
+          image: biostreamdiag.azurecr.io/whiskey:1.0.0.1
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 4000
