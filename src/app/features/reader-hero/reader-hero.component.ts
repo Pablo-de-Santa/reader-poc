@@ -39,19 +39,10 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   @ViewChildren('instructionFluid') private instructionFluidElements!: QueryList<ElementRef<HTMLElement>>;
 
   readonly phrases = [
-    'sample markers',
-    'health signals',
-    'wellness panels',
-    'focused sensors',
-    'guided testing',
-    'clearer results',
-    'connected reads',
-    'portable insight',
-    'many workflows',
-    'flexible testing',
+    'Healthier Lives',
   ];
 
-  readonly sampleFluids = ['saliva', 'blood', 'urine', 'other bodily fluids'];
+  readonly sampleFluids = ['whole blood', 'serum', 'urine', 'saliva', 'water', 'most liquids'];
 
   private readonly initialModelPosition = new THREE.Vector3(0.7, -0.05, 0);
   private readonly initialModelRotation = new THREE.Euler(0.26, -0.48, 0);
@@ -64,7 +55,9 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private readonly cartridgeLengthScale = 1.4;
   private readonly cartridgeWidthScale = 1.7;
   private readonly cartridgeHeightScale = 1.6;
-  private readonly cartridgeSampleX = 0.55;
+  // Shared sample-well target for the pipette and droplet on Cartridge Base_V2.
+  private readonly cartridgeSampleX = 0.60;
+  private readonly cartridgeSampleZ = 0.15;
   private readonly sampleDropPairCenterX = -0.72;
   private readonly scrollSpinBackProgress = 0.055;
   private readonly centerSensorDisplayRotation = new THREE.Euler(Math.PI / 2 - 0.4, 0.5, 0);
@@ -587,7 +580,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
     const loader = new GLTFLoader();
     loader.load(
-      this.getAssetUrl('assets/models/cartridge/Cartridge Base.gltf'),
+      this.getAssetUrl('assets/models/cartridge/Cartridge Base_V2.gltf'),
       (gltf) => {
         if (!this.sensorGroup) return;
 
@@ -731,16 +724,16 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       '--device-w': () => this.getBannerPhoneFrame().width,
       '--device-h': () => this.getBannerPhoneFrame().height,
       '--screen-type-scale': () => this.getDeviceContentScale('phone'),
-      '--device-r': '1.5rem',
+      '--device-r': '1.85rem',
       '--device-x': '0vw',
       '--device-y': () => this.getBannerPhoneOffsetY(),
       '--stand-o': 0,
       '--keyboard-o': 0,
       '--home-o': 0,
-      '--screen-r': '1.5rem',
+      '--screen-r': '1.25rem',
       '--screen-bg': '#eee8ef',
-      '--device-shell-bg': 'rgba(241, 236, 224, 0.92)',
-      '--device-frame-border': 'rgba(241, 236, 224, 0.92)',
+      '--device-shell-bg': 'rgba(38, 42, 52, 0.96)',
+      '--device-frame-border': 'rgba(38, 42, 52, 0.96)',
       '--device-shadow-o': 0.42,
       '--device-inner-shadow-o': 0.18,
     });
@@ -833,15 +826,15 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           '--device-w': () => this.getBannerPhoneFrame().width,
           '--device-h': () => this.getBannerPhoneFrame().height,
           '--screen-type-scale': () => this.getDeviceContentScale('phone'),
-          '--device-r': '1.5rem',
+          '--device-r': '1.85rem',
           '--device-x': '0vw',
           '--device-y': () => this.getBannerPhoneOffsetY(),
           '--stand-o': 0,
           '--keyboard-o': 0,
           '--home-o': 0,
-          '--screen-r': '1.5rem',
+          '--screen-r': '1.25rem',
           '--screen-bg': '#eee8ef',
-          '--device-shell-bg': 'rgba(241, 236, 224, 0.92)',
+          '--device-shell-bg': 'rgba(38, 42, 52, 0.96)',
           duration: 0.4,
           ease: 'power2.out',
         },
@@ -863,12 +856,17 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       .to(this.sensorGroup.rotation, { x: 0, y: 0, z: 0, duration: 0.28 }, 1.68)
       .to(screenPanels[0] ?? {}, { autoAlpha: 0, filter: 'blur(12px)', duration: 0.2, ease: 'power2.in' }, 2.92)
       .to(screenPanels[1] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', duration: 0.3, ease: 'power2.out' }, 3.02)
-      .to(instructionFluidNodes[0] ?? {}, { autoAlpha: 0, filter: 'blur(10px)', yPercent: -32, duration: 0.16 }, 3.58)
-      .to(instructionFluidNodes[1] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0, duration: 0.18 }, 3.62)
-      .to(instructionFluidNodes[1] ?? {}, { autoAlpha: 0, filter: 'blur(10px)', yPercent: -32, duration: 0.16 }, 3.86)
-      .to(instructionFluidNodes[2] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0, duration: 0.18 }, 3.9)
-      .to(instructionFluidNodes[2] ?? {}, { autoAlpha: 0, filter: 'blur(10px)', yPercent: -32, duration: 0.16 }, 4.14)
-      .to(instructionFluidNodes[3] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0, duration: 0.18 }, 4.18)
+      // Cycle through all six sample types within the existing instruction scene.
+      .to(instructionFluidNodes[0] ?? {}, { autoAlpha: 0, filter: 'blur(10px)', yPercent: -32, duration: 0.1 }, 3.5)
+      .to(instructionFluidNodes[1] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0, duration: 0.12 }, 3.6)
+      .to(instructionFluidNodes[1] ?? {}, { autoAlpha: 0, filter: 'blur(10px)', yPercent: -32, duration: 0.1 }, 3.72)
+      .to(instructionFluidNodes[2] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0, duration: 0.12 }, 3.82)
+      .to(instructionFluidNodes[2] ?? {}, { autoAlpha: 0, filter: 'blur(10px)', yPercent: -32, duration: 0.1 }, 3.94)
+      .to(instructionFluidNodes[3] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0, duration: 0.12 }, 4.04)
+      .to(instructionFluidNodes[3] ?? {}, { autoAlpha: 0, filter: 'blur(10px)', yPercent: -32, duration: 0.1 }, 4.16)
+      .to(instructionFluidNodes[4] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0, duration: 0.12 }, 4.26)
+      .to(instructionFluidNodes[4] ?? {}, { autoAlpha: 0, filter: 'blur(10px)', yPercent: -32, duration: 0.1 }, 4.38)
+      .to(instructionFluidNodes[5] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0, duration: 0.12 }, 4.48)
       .set(pipette?.position ?? {}, { y: 9.5 }, 3.5)
       .set(pipette ?? {}, { visible: true }, 3.5)
       .to(pipette?.position ?? {}, { y: 0.88, duration: 0.72, ease: 'power2.out' }, 3.5)
@@ -909,6 +907,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
         {
           '--device-shell-bg': 'rgba(241, 236, 224, 0)',
           '--device-frame-border': 'rgba(241, 236, 224, 0)',
+          '--frame-edge-opacity': 0,
           '--screen-bg': 'rgba(238, 232, 239, 0)',
           '--keyboard-o': 0,
           '--stand-o': 0,
@@ -963,16 +962,16 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           '--device-w': () => this.getBannerPhoneFrame().width,
           '--device-h': () => this.getBannerPhoneFrame().height,
           '--screen-type-scale': () => this.getDeviceContentScale('phone'),
-          '--device-r': '1.5rem',
+          '--device-r': '1.85rem',
           '--device-x': '0vw',
           '--device-y': () => this.getBannerPhoneOffsetY(),
           '--stand-o': 0,
           '--keyboard-o': 0,
           '--home-o': 0,
-          '--screen-r': '1.5rem',
+          '--screen-r': '1.25rem',
           '--screen-bg': '#eee8ef',
-          '--device-shell-bg': 'rgba(241, 236, 224, 0.92)',
-          '--device-frame-border': 'rgba(241, 236, 224, 0.92)',
+          '--device-shell-bg': 'rgba(38, 42, 52, 0.96)',
+          '--device-frame-border': 'rgba(38, 42, 52, 0.96)',
           '--device-shadow-o': 0.42,
           '--device-inner-shadow-o': 0.18,
           duration: 0.4,
@@ -986,15 +985,15 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           '--device-w': () => this.getBannerPhoneFrame().width,
           '--device-h': () => this.getBannerPhoneFrame().height,
           '--screen-type-scale': () => this.getDeviceContentScale('phone'),
-          '--device-r': '1.5rem',
+          '--device-r': '1.85rem',
           '--device-y': () => this.getBannerPhoneOffsetY(),
           '--stand-o': 0,
           '--keyboard-o': 0,
           '--home-o': 0,
-          '--screen-r': '1.5rem',
+          '--screen-r': '1.25rem',
           '--screen-bg': '#eee8ef',
-          '--device-shell-bg': 'rgba(241, 236, 224, 0.92)',
-          '--device-frame-border': 'rgba(241, 236, 224, 0.92)',
+          '--device-shell-bg': 'rgba(38, 42, 52, 0.96)',
+          '--device-frame-border': 'rgba(38, 42, 52, 0.96)',
           '--device-shadow-o': 0.42,
           '--device-inner-shadow-o': 0.18,
           duration: 0.01,
@@ -1041,8 +1040,8 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           '--home-o': 0,
           '--screen-r': '0.12rem',
           '--screen-bg': '#eee8ef',
-          '--device-shell-bg': 'rgba(241, 236, 224, 0.92)',
-          '--device-frame-border': 'rgba(241, 236, 224, 0.92)',
+          '--device-shell-bg': 'rgba(38, 42, 52, 0.96)',
+          '--device-frame-border': 'rgba(38, 42, 52, 0.96)',
           '--device-shadow-o': 0.42,
           '--device-inner-shadow-o': 0.18,
           duration: 0.7,
@@ -1195,6 +1194,18 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       x: '-0.55em',
     });
 
+    // Keep the rotation machinery for future multi-phrase copy, but do not
+    // start a redundant loop when the current copy contains only one phrase.
+    if (phraseNodes.length === 1) {
+      gsap.set(phraseNodes[0], {
+        autoAlpha: 1,
+        clipPath: 'inset(0 0% 0 0)',
+        filter: 'blur(0px)',
+        x: 0,
+      });
+      return;
+    }
+
     const tl = gsap.timeline({ delay: 0.55, repeat: -1, repeatDelay: 0.12 });
     this.phraseTimeline = tl;
 
@@ -1293,7 +1304,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
     this.pipetteGroup = new THREE.Group();
     this.pipetteGroup.name = 'pipette_group';
-    this.pipetteGroup.position.set(this.cartridgeSampleX, 3.6, 0);
+    this.pipetteGroup.position.set(this.cartridgeSampleX, 3.6, this.cartridgeSampleZ);
     this.pipetteGroup.rotation.set(0, 0, 0);
     this.pipetteGroup.visible = false;
     this.sensorGroup.add(this.pipetteGroup);
@@ -1327,7 +1338,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
     this.dropletGroup = new THREE.Group();
     this.dropletGroup.name = 'solution_droplet';
-    this.dropletGroup.position.set(this.cartridgeSampleX, 0, 0);
+    this.dropletGroup.position.set(this.cartridgeSampleX, 0, this.cartridgeSampleZ);
     this.dropletGroup.visible = false;
     this.sensorGroup.add(this.dropletGroup);
 

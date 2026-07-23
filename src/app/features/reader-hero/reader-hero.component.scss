@@ -92,6 +92,10 @@
   box-shadow: none;
 }
 
+.reader-hero.is-product-cta .device-shell::after {
+  opacity: 0;
+}
+
 .reader-hero.is-product-cta .device-screen,
 .reader-hero.is-product-cta .screen-panel-final {
   background: transparent;
@@ -136,8 +140,8 @@
   --home-o: 0;
   --screen-r: var(--device-r);
   --screen-bg: #eee8ef;
-  --device-shell-bg: rgba(241, 236, 224, 0.92);
-  --device-frame-border: rgba(241, 236, 224, 0.92);
+  --device-shell-bg: rgba(38, 42, 52, 0.96);
+  --device-frame-border: rgba(38, 42, 52, 0.96);
   --device-shadow-o: 0.42;
   --device-inner-shadow-o: 0.18;
   position: absolute;
@@ -148,6 +152,7 @@
 }
 
 .device-shell {
+  --frame-border-width: clamp(0.34rem, 0.75vw, 0.68rem);
   position: absolute;
   z-index: 2;
   left: 50%;
@@ -162,6 +167,18 @@
   box-shadow:
     0 1.5rem 5rem rgba(0, 0, 0, var(--device-shadow-o)),
     inset 0 0 0 1px rgba(255, 255, 255, var(--device-inner-shadow-o));
+  pointer-events: none;
+}
+
+/* One continuous silver edge for the phone, tablet, and laptop stages. */
+.device-shell::after {
+  position: absolute;
+  inset: calc(-1 * var(--frame-border-width));
+  z-index: 3;
+  content: "";
+  border: 1px solid rgba(210, 220, 235, 0.7);
+  border-radius: var(--device-r);
+  box-shadow: inset 0 1px 0 rgba(248, 251, 255, 0.62), inset 0 -1px 0 rgba(8, 11, 18, 0.72);
   pointer-events: none;
 }
 
@@ -915,13 +932,13 @@
 
 .bluetooth-signal {
   position: absolute;
-  top: 66vh;
+  top: 67.25vh;
   left: 50vw;
   z-index: 2;
   display: grid;
   place-items: center;
-  width: 4.4rem;
-  height: 4.4rem;
+  width: 3.6rem;
+  height: 3.6rem;
   color: #ffffff;
   opacity: 0;
   pointer-events: none;
@@ -933,8 +950,8 @@
   z-index: 1;
   display: grid;
   place-items: center;
-  width: 2.15rem;
-  height: 2.15rem;
+  width: 1.75rem;
+  height: 1.75rem;
   border: 1px solid rgba(216, 238, 255, 0.42);
   border-radius: 999px;
   background: linear-gradient(180deg, #2289ff, #085bd5);
@@ -942,8 +959,8 @@
 }
 
 .bluetooth-core svg {
-  width: 1.28rem;
-  height: 1.28rem;
+  width: 1.05rem;
+  height: 1.05rem;
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
@@ -1052,7 +1069,8 @@
   display: grid;
   flex: 0 1 70%;
   align-content: start;
-  max-width: 13.4ch;
+  row-gap: 0.08em;
+  max-width: none;
   margin: 0;
   font-size: var(--headline-size);
   font-weight: 760;
@@ -1063,11 +1081,16 @@
     0 0.12em 0.38em rgba(0, 0, 0, 0.26);
 }
 
+.reader-headline > span {
+  display: block;
+  white-space: nowrap;
+}
+
 .phrase-stage {
   position: relative;
   display: block;
   width: 100%;
-  height: clamp(2.85em, 27dvh, 3.68em);
+  height: 1.08em;
   overflow: visible;
 }
 
@@ -1093,8 +1116,9 @@
   max-width: 29rem;
   margin: auto 0 0;
   color: rgba(247, 239, 226, 0.78);
-  font-size: var(--body-size);
+  font-size: calc(var(--body-size) * 2);
   line-height: 1.55;
+  transform: translateY(-100%);
   text-shadow: 0 0.12em 0.45em rgba(0, 0, 0, 0.46);
 }
 
@@ -1179,6 +1203,7 @@
 }
 
 .progress {
+  display: none;
   position: fixed;
   right: clamp(1rem, 3vw, 2rem);
   bottom: clamp(1rem, 3vw, 2rem);
@@ -1212,11 +1237,12 @@
   }
 
   .reader-headline {
-    max-width: 10.8ch;
+    max-width: none;
   }
 
   .reader-copy p:last-child {
     max-width: 22rem;
+    transform: translateY(-35%);
   }
 }
 
@@ -1243,7 +1269,7 @@
   }
 
   .phrase-stage {
-    height: clamp(3.2em, 28dvh, 3.8em);
+    height: 1.08em;
   }
 
   .reader-copy p:last-child {
@@ -1305,12 +1331,12 @@
 
   .reader-headline {
     flex: 0 0 auto;
-    max-width: 18ch;
+    max-width: none;
     line-height: 1.02;
   }
 
   .phrase-stage {
-    height: clamp(1.02em, 7dvh, 1.95em);
+    height: 1.08em;
   }
 
   .reader-copy p:last-child {
@@ -1320,6 +1346,7 @@
     margin: auto 0 0;
     color: rgba(247, 239, 226, 0.92);
     line-height: 1.36;
+    transform: none;
   }
 }
 
@@ -1338,8 +1365,8 @@
     line-height: 1.03;
   }
 
-  .phrase-stage {
-    height: clamp(2.7em, 26dvh, 3.45em);
+.phrase-stage {
+    height: 1.08em;
   }
 
   .reader-copy p:last-child {
@@ -1354,8 +1381,8 @@
     --body-size: clamp(0.78rem, calc(var(--headline-size) * 0.21), 0.96rem);
   }
 
-  .phrase-stage {
-    height: clamp(2.55em, 25dvh, 3.25em);
+.phrase-stage {
+    height: 1.08em;
   }
 
   .reader-copy p:last-child {
@@ -1379,8 +1406,8 @@
     height: auto;
   }
 
-  .phrase-stage {
-    height: clamp(1.02em, 7dvh, 1.95em);
+.phrase-stage {
+    height: 1.08em;
   }
 
   .reader-copy p:last-child {
