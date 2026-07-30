@@ -26,6 +26,7 @@ ScrollTrigger.config({ ignoreMobileResize: true });
 export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   @ViewChild('canvasHost', { static: true }) private canvasHost!: ElementRef<HTMLDivElement>;
   @ViewChild('hero', { static: true }) private hero!: ElementRef<HTMLElement>;
+  @ViewChild('captureFade', { static: true }) private captureFade!: ElementRef<HTMLDivElement>;
   @ViewChild('readerCopy', { static: true }) private readerCopy!: ElementRef<HTMLElement>;
   @ViewChild('sampleCopy', { static: true }) private sampleCopy!: ElementRef<HTMLElement>;
   @ViewChild('deviceStage', { static: true }) private deviceStage!: ElementRef<HTMLElement>;
@@ -134,6 +135,8 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private isTopInteractive = true;
   private resizeRefreshId = 0;
   private initialScrollResetId = 0;
+  private captureFrameId = 0;
+  private captureTimeoutIds: number[] = [];
   private resizeObserver?: ResizeObserver;
   private pointerStart = new THREE.Vector2();
   private dragStartRotation = new THREE.Euler();
@@ -155,7 +158,8 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     ScrollTrigger.normalizeScroll(true);
 
     this.initScene();
-    this.createParticles();
+    // The banner video should stay clean against the family background.
+    // Keep the particle factory available for a future interactive treatment, but do not add it here.
     this.createReaderModel();
     this.createPipetteAndDroplet();
     this.createSensorConstellationScene();
@@ -185,6 +189,8 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     cancelAnimationFrame(this.frameId);
+    cancelAnimationFrame(this.captureFrameId);
+    this.captureTimeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
     window.clearTimeout(this.resizeRefreshId);
     window.clearTimeout(this.initialScrollResetId);
     this.resizeObserver?.disconnect();
@@ -331,6 +337,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
     const material = new THREE.ShaderMaterial({
       uniforms: this.nebulaUniforms,
+      transparent: true,
       depthTest: false,
       depthWrite: false,
       vertexShader: `
@@ -433,7 +440,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           float vignette = smoothstep(0.92, 0.24, distance(uv, vec2(0.5, 0.52)));
           color *= 0.62 + vignette * 0.58;
 
-          gl_FragColor = vec4(color, 1.0);
+          gl_FragColor = vec4(color, 0.38);
         }
       `,
     });
@@ -808,17 +815,11 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
         },
         0,
       )
-      .to(
-        readerCopy,
-        {
-          x: () => (this.isMobileLayout() ? '0vw' : '-38vw'),
-          y: () => (this.isMobileLayout() ? '-31dvh' : '0vh'),
-          duration: 0.34,
-          ease: 'power2.in',
-        },
-        0,
-      )
-      .to(readerCopyText, { autoAlpha: 0, filter: 'blur(10px)', duration: 0.34, ease: 'power2.in' }, 0)
+      // Keep the primary banner message visible on the left throughout the product sequence.
+      // Hiding it during the device transition caused the captured sequence to feel like a
+      // different page and created overlaps on narrow views.
+      .set(readerCopy, { autoAlpha: 1, x: 0, y: 0, filter: 'none' }, 0)
+      .set(readerCopyText, { autoAlpha: 1, filter: 'blur(0px)' }, 0)
       .to(deviceStage, { autoAlpha: 1, duration: 0.28, ease: 'power2.out' }, 0.62)
       .to(
         deviceStage,
@@ -854,6 +855,13 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       .to(this.sensorGroup.position, { x: this.cartridgeInsertedX, y: this.cartridgeSlotY, z: 0, duration: 1.12, ease: 'power1.inOut' }, 1.68)
       .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getSampleDropModelPosition(this.cartridgeInsertedX), 1.12), 1.68)
       .to(this.sensorGroup.rotation, { x: 0, y: 0, z: 0, duration: 0.28 }, 1.68)
+      .to(sampleCopy, { autoAlpha: 1, filter: 'blur(0px)', y: 0, duration: 0.42, ease: 'power2.out' }, 2.9)
+      .to(sampleFluidNodes[0] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0, duration: 0.28, ease: 'power2.out' }, 3.16)
+      .to(sampleFluidNodes[1] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0, duration: 0.28, ease: 'power2.out' }, 3.48)
+      .to(sampleFluidNodes[2] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0, duration: 0.28, ease: 'power2.out' }, 3.8)
+      .to(sampleFluidNodes[3] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0, duration: 0.28, ease: 'power2.out' }, 4.12)
+      .to(sampleFluidNodes[4] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0, duration: 0.28, ease: 'power2.out' }, 4.44)
+      .to(sampleFluidNodes[5] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0, duration: 0.28, ease: 'power2.out' }, 4.76)
       .to(screenPanels[0] ?? {}, { autoAlpha: 0, filter: 'blur(12px)', duration: 0.2, ease: 'power2.in' }, 2.92)
       .to(screenPanels[1] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', duration: 0.3, ease: 'power2.out' }, 3.02)
       // Cycle through all six sample types within the existing instruction scene.
@@ -902,6 +910,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       .to(screenPanels[3] ?? {}, { autoAlpha: 0, filter: 'blur(12px)', duration: 0.24, ease: 'power2.in' }, 7.2)
       .to(screenPanels[4] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', duration: 0.34, ease: 'power2.out' }, 7.3)
       .to(screenPanels[4] ?? {}, { autoAlpha: 0, filter: 'blur(12px)', duration: 0.24, ease: 'power2.in' }, 8.42)
+      .to(sampleCopy, { autoAlpha: 0, filter: 'blur(10px)', duration: 0.34, ease: 'power2.in' }, 8.5)
       .to(
         deviceStage,
         {
@@ -1180,7 +1189,9 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       .to(this.sensorStarMotion, { fall: 1, duration: 0.9, ease: 'none' }, 14.06)
       .to(this.topLight ?? {}, { intensity: 82, duration: 0.46, ease: 'power2.inOut' }, 14.96)
       .to(this.frontFill ?? {}, { intensity: 0.48, duration: 0.46, ease: 'power2.inOut' }, 14.96)
-      .to(sensorCta, { autoAlpha: 1, filter: 'blur(0px)', '--cta-y': '0px', duration: 0.9, ease: 'none' }, 14.06);
+      .to(sensorCta, { autoAlpha: 1, filter: 'blur(0px)', '--cta-y': '0px', duration: 0.9, ease: 'none' }, 14.06)
+      // Give viewers more time to read the phone screens and follow the reader movement.
+      .timeScale(0.78);
   }
 
   private setupPhraseAnimation(): void {
@@ -1295,7 +1306,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       metalness: 0,
     });
     const liquid = new THREE.MeshStandardMaterial({
-      color: '#d8ffff',
+      color: '#913ffc',
       transparent: true,
       opacity: 0.68,
       roughness: 0.04,
@@ -2785,6 +2796,9 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
   private onResize(): void {
     const viewport = this.getViewportSize();
+    const bannerLayout = this.getBannerLayout();
+    this.hero.nativeElement.style.setProperty('--banner-action-shift', `${bannerLayout.phoneShiftVw}vw`);
+    this.hero.nativeElement.style.setProperty('--banner-content-top', bannerLayout.contentTop);
     this.camera.aspect = viewport.width / viewport.height;
     this.camera.position.z = viewport.width < 900 ? 7.65 : 6.7;
     this.camera.updateProjectionMatrix();
@@ -2830,6 +2844,73 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     return {
       width: Math.max(320, Math.round(window.visualViewport?.width ?? window.innerWidth)),
       height: Math.max(480, Math.round(window.visualViewport?.height ?? window.innerHeight)),
+    };
+  }
+
+  startCaptureSequence(): void {
+    if (!this.scrollTimeline || !this.scrollTriggerInstance || this.captureFrameId) return;
+
+    const trigger = this.scrollTriggerInstance;
+    const start = trigger.start;
+    const end = trigger.end;
+    const targetTimelineTime = 7.52; // dashboard fully visible, just before the laptop transition
+    const targetProgress = THREE.MathUtils.clamp(targetTimelineTime / this.scrollTimeline.duration(), 0, 1);
+    const targetScroll = start + (end - start) * targetProgress;
+    const startScroll = Math.max(0, start);
+    const runDuration = 15000;
+
+    this.captureTimeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    this.captureTimeoutIds = [];
+    // Keep the capture clean while preserving the particles for the normal interactive experience.
+    if (this.particles) this.particles.visible = false;
+    this.hero.nativeElement.classList.add('is-capture-running', 'is-capture-faded');
+    window.scrollTo({ top: startScroll, left: 0, behavior: 'auto' });
+    this.applyCaptureProgress(0);
+
+    const fadeInId = window.setTimeout(() => {
+      this.hero.nativeElement.classList.remove('is-capture-faded');
+      const holdId = window.setTimeout(() => {
+        const startedAt = performance.now();
+        const animateCapture = (now: number) => {
+          const progress = THREE.MathUtils.clamp((now - startedAt) / runDuration, 0, 1);
+          const easedProgress = progress * progress * (3 - 2 * progress);
+          const scrollTop = startScroll + (targetScroll - startScroll) * easedProgress;
+          window.scrollTo({ top: scrollTop, left: 0, behavior: 'auto' });
+          this.applyCaptureProgress(targetProgress * easedProgress);
+
+          if (progress < 1) {
+            this.captureFrameId = requestAnimationFrame(animateCapture);
+          } else {
+            this.captureFrameId = 0;
+            this.hero.nativeElement.classList.add('is-capture-faded');
+          }
+        };
+
+        this.captureFrameId = requestAnimationFrame(animateCapture);
+      }, 3000);
+      this.captureTimeoutIds.push(holdId);
+    }, 3000); // 0.9s fade-to-black, then a 2s fully-dark hold
+    this.captureTimeoutIds.push(fadeInId);
+  }
+
+  private applyCaptureProgress(progress: number): void {
+    this.scrollProgressCurrent = progress;
+    this.scrollProgressTarget = progress;
+    this.scrollTimeline?.progress(progress);
+    this.hero.nativeElement.style.setProperty('--scroll-progress', progress.toFixed(4));
+    this.syncProductCtaLayer(progress);
+    if (this.nebulaUniforms) this.nebulaUniforms.uProgress.value = progress;
+  }
+
+  private getBannerLayout(): { phoneShiftVw: number; readerX: number; contentTop: string } {
+    const viewport = this.getViewportSize();
+    const compact = viewport.width < 760;
+    const tablet = viewport.width < 1100;
+
+    return {
+      phoneShiftVw: compact ? 0 : 18,
+      readerX: compact ? 0 : tablet ? 0.75 : viewport.width < 1400 ? 1.2 : 1.55,
+      contentTop: '10dvh',
     };
   }
 
@@ -2907,19 +2988,20 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private getSensorSequenceModelPosition(): THREE.Vector3 {
     const width = this.getViewportSize().width;
     const portraitProgress = this.getPortraitProgress();
+    const actionOffset = this.getBannerLayout().readerX;
 
     if (portraitProgress > 0) {
       return new THREE.Vector3(
-        THREE.MathUtils.lerp(0, -0.36, portraitProgress),
+        THREE.MathUtils.lerp(0, actionOffset - 0.36, portraitProgress),
         THREE.MathUtils.lerp(-1.48, -1.66, portraitProgress),
         0,
       );
     }
 
     if (width < 760) return new THREE.Vector3(0.02, -1.62, 0);
-    if (width < 1100) return new THREE.Vector3(0.02, -1.5, 0);
-    if (width < 1400) return new THREE.Vector3(0, -1.44, 0);
-    return new THREE.Vector3(0, -1.4, 0);
+    if (width < 1100) return new THREE.Vector3(0.02 + actionOffset, -1.5, 0);
+    if (width < 1400) return new THREE.Vector3(actionOffset, -1.44, 0);
+    return new THREE.Vector3(actionOffset, -1.4, 0);
   }
 
   private getSampleDropModelPosition(cartridgeX: number): THREE.Vector3 {
@@ -3067,11 +3149,12 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private getDeviceModelPosition(kind: 'desktop' | 'laptop' | 'tablet' | 'phone'): THREE.Vector3 {
     const width = this.getViewportSize().width;
     const compactOffset = width < 760 ? 0.02 : 0;
+    const actionOffset = this.getBannerLayout().readerX;
     const positions = {
-      desktop: new THREE.Vector3(0 + compactOffset, 0.08, 0),
-      laptop: new THREE.Vector3(0 + compactOffset, 0.08, 0),
-      tablet: new THREE.Vector3(-0.06 + compactOffset, 0.11, 0),
-      phone: new THREE.Vector3(-0.05 + compactOffset, -0.18, 0),
+      desktop: new THREE.Vector3(0 + compactOffset + actionOffset, 0.08, 0),
+      laptop: new THREE.Vector3(0 + compactOffset + actionOffset, 0.08, 0),
+      tablet: new THREE.Vector3(-0.06 + compactOffset + actionOffset, 0.11, 0),
+      phone: new THREE.Vector3(-0.05 + compactOffset + actionOffset, -0.18, 0),
     };
 
     return positions[kind];
@@ -3079,10 +3162,10 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
   private getFinalDeviceModelPosition(): THREE.Vector3 {
     const viewport = this.getViewportSize();
+    const readerX = this.getBannerLayout().readerX;
     if (viewport.width < 760) return new THREE.Vector3(0, 0.08, 0);
-    if (viewport.width < 1100) return new THREE.Vector3(0, 0.08, 0);
 
-    return new THREE.Vector3(0, 0.08, 0);
+    return new THREE.Vector3(readerX, 0.08, 0);
   }
 
   private getSceneExitModelPosition(): THREE.Vector3 {
