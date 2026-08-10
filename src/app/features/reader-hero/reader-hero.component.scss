@@ -10,6 +10,43 @@
   cursor: grab;
 }
 
+.sensor-gif-control {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 12;
+  padding: 0.65rem 1rem;
+  border: 0;
+  border-radius: 999px;
+  background: #40008f;
+  color: #fff;
+  cursor: pointer;
+  font: 700 0.9rem Roboto, sans-serif;
+}
+
+.reader-hero.is-sensor-gif-capturing .sensor-gif-control {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.reader-hero.is-sensor-gif-ready .reader-copy,
+.reader-hero.is-sensor-gif-ready .sample-copy,
+.reader-hero.is-sensor-gif-ready .device-stage,
+.reader-hero.is-sensor-gif-ready .analysis-overlay,
+.reader-hero.is-sensor-gif-capturing .reader-copy,
+.reader-hero.is-sensor-gif-capturing .sample-copy,
+.reader-hero.is-sensor-gif-capturing .device-stage,
+.reader-hero.is-sensor-gif-capturing .analysis-overlay {
+  visibility: hidden;
+}
+
+.reader-hero.is-sensor-gif-ready::before,
+.reader-hero.is-sensor-gif-ready::after,
+.reader-hero.is-sensor-gif-capturing::before,
+.reader-hero.is-sensor-gif-capturing::after {
+  display: none;
+}
+
 .reader-hero::before {
   position: absolute;
   z-index: 0;
@@ -69,6 +106,7 @@
   height: 100vh;
   height: 100svh;
   cursor: grab;
+  transition: opacity 0.9s ease;
 }
 
 .reader-hero.is-product-cta .reader-canvas {

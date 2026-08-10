@@ -38,6 +38,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   @ViewChildren('sampleFluid') private sampleFluidElements!: QueryList<ElementRef<HTMLElement>>;
   @ViewChildren('instructionFluid') private instructionFluidElements!: QueryList<ElementRef<HTMLElement>>;
 
+
   readonly phrases = [
     'Healthier Lives',
   ];
@@ -146,6 +147,9 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private pointerDownHandler = (event: PointerEvent) => this.onPointerDown(event);
   private pointerMoveHandler = (event: PointerEvent) => this.onPointerMove(event);
   private pointerUpHandler = () => this.onPointerUp();
+  private sensorGifTimeoutId = 0;
+  private sensorGifFrameId = 0;
+  private sensorGifMode = false;
 
   ngAfterViewInit(): void {
     if ('scrollRestoration' in window.history) {
@@ -161,6 +165,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.createSensorConstellationScene();
     this.createSensorMessageScene();
     this.buildScrollAnimation();
+    this.prepareSensorGifScene();
     this.setupPhraseAnimation();
     this.animate();
     window.addEventListener('pageshow', this.pageShowHandler);
@@ -178,15 +183,16 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       this.onResize();
       this.syncInteractionMode();
       ScrollTrigger.refresh();
-      this.runOpeningOrientationAnimation();
     });
     this.initialScrollResetId = window.setTimeout(() => this.resetScrollPosition(), 90);
   }
 
   ngOnDestroy(): void {
     cancelAnimationFrame(this.frameId);
+    cancelAnimationFrame(this.sensorGifFrameId);
     window.clearTimeout(this.resizeRefreshId);
     window.clearTimeout(this.initialScrollResetId);
+    window.clearTimeout(this.sensorGifTimeoutId);
     this.resizeObserver?.disconnect();
     window.removeEventListener('pageshow', this.pageShowHandler);
     window.removeEventListener('resize', this.resizeHandler);
@@ -200,6 +206,71 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.openingOrientationTimeline?.kill();
     ScrollTrigger.normalizeScroll(false);
     this.renderer?.dispose();
+  }
+
+  playSensorGif(): void {
+    if (!this.scrollTimeline || !this.scrollTriggerInstance || this.sensorGifFrameId) return;
+
+    window.clearTimeout(this.sensorGifTimeoutId);
+    this.prepareSensorGifScene();
+    this.hero.nativeElement.classList.add('is-sensor-gif-capturing');
+    const captureButton = this.hero.nativeElement.querySelector<HTMLElement>('.sensor-gif-control');
+    this.canvasHost.nativeElement.style.opacity = '1';
+    if (captureButton) captureButton.style.visibility = 'hidden';
+
+    const trigger = this.scrollTriggerInstance;
+    const startScroll = Math.max(0, trigger.start);
+    const insertionEndTime = 2.95;
+    const targetProgress = THREE.MathUtils.clamp(insertionEndTime / this.scrollTimeline.duration(), 0, 1);
+    const targetScroll = trigger.start + (trigger.end - trigger.start) * targetProgress;
+    const runDuration = 6000;
+
+    window.scrollTo({ top: startScroll, left: 0, behavior: 'auto' });
+    this.scrollProgressCurrent = 0;
+    this.scrollProgressTarget = 0;
+    this.scrollTimeline.progress(0);
+    this.hero.nativeElement.style.setProperty('--scroll-progress', '0');
+
+    const startedAt = performance.now();
+    const animateCapture = (now: number) => {
+      const progress = THREE.MathUtils.clamp((now - startedAt) / runDuration, 0, 1);
+      const easedProgress = progress * progress * (3 - 2 * progress);
+      const scrollTop = startScroll + (targetScroll - startScroll) * easedProgress;
+
+      window.scrollTo({ top: scrollTop, left: 0, behavior: 'auto' });
+      this.scrollProgressCurrent = targetProgress * easedProgress;
+      this.scrollProgressTarget = this.scrollProgressCurrent;
+      this.scrollTimeline?.progress(this.scrollProgressCurrent);
+      this.hero.nativeElement.style.setProperty('--scroll-progress', this.scrollProgressCurrent.toFixed(4));
+
+      if (progress < 1) {
+        this.sensorGifFrameId = requestAnimationFrame(animateCapture);
+      } else {
+        this.sensorGifFrameId = 0;
+        this.canvasHost.nativeElement.style.opacity = '0';
+      }
+    };
+
+    this.sensorGifFrameId = requestAnimationFrame(animateCapture);
+  }
+
+  private prepareSensorGifScene(): void {
+    this.sensorGifMode = true;
+    this.openingOrientationTimeline?.kill();
+    this.isTopInteractive = false;
+    this.hero.nativeElement.classList.add('is-sensor-gif-ready');
+    this.readerCopy.nativeElement.style.display = 'none';
+    this.sampleCopy.nativeElement.style.display = 'none';
+    this.deviceStage.nativeElement.style.display = 'none';
+    this.analysisOverlay.nativeElement.style.display = 'none';
+    if (this.particles) this.particles.visible = false;
+    if (this.nebulaBackground) this.nebulaBackground.visible = false;
+    if (this.sensorConstellation) this.sensorConstellation.visible = false;
+    if (this.sensorMessage) this.sensorMessage.visible = false;
+    this.topRotationRig?.position.copy(this.getSensorSequenceModelPosition());
+    this.topRotationRig?.rotation.set(0, 0, 0);
+    this.topRotationRig?.scale.setScalar(this.getSensorSequenceModelScale());
+    this.model?.rotation.copy(this.getSensorSequenceModelRotation());
   }
 
   private resetScrollPosition(): void {
@@ -2673,6 +2744,11 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
   private syncInteractionMode(): void {
     const isAtTop = window.scrollY <= 2;
+    if (this.sensorGifMode) {
+      this.isTopInteractive = false;
+      this.setInteractionCursor('default');
+      return;
+    }
     this.isTopInteractive = isAtTop;
     this.setInteractionCursor(isAtTop ? 'grab' : 'default');
     if (!isAtTop) this.disableTopInteraction();
@@ -2770,7 +2846,9 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       this.nebulaUniforms.uProgress.value = visualProgress;
     }
 
-    if (visualProgress > 0.0008) {
+    if (this.sensorGifMode) {
+      this.disableTopInteraction();
+    } else if (visualProgress > 0.0008) {
       this.disableTopInteraction();
     } else {
       this.enableTopInteraction();
@@ -2792,12 +2870,19 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.renderer.setSize(viewport.width, viewport.height, false);
     this.updateNebulaBackgroundSize();
     this.scrollTimeline?.invalidate();
-    if (this.topRotationRig && window.scrollY <= 2) {
-      this.topRotationRig.position.copy(this.getInitialModelPosition());
-      this.topRotationRig.scale.setScalar(this.getInitialModelScale());
-    }
-    if (this.model && window.scrollY <= 2) {
-      this.model.rotation.copy(this.getInitialModelRotation());
+    if (this.sensorGifMode && window.scrollY <= 2) {
+      this.topRotationRig?.position.copy(this.getSensorSequenceModelPosition());
+      this.topRotationRig?.rotation.set(0, 0, 0);
+      this.topRotationRig?.scale.setScalar(this.getSensorSequenceModelScale());
+      this.model?.rotation.copy(this.getSensorSequenceModelRotation());
+    } else {
+      if (this.topRotationRig && window.scrollY <= 2) {
+        this.topRotationRig.position.copy(this.getInitialModelPosition());
+        this.topRotationRig.scale.setScalar(this.getInitialModelScale());
+      }
+      if (this.model && window.scrollY <= 2) {
+        this.model.rotation.copy(this.getInitialModelRotation());
+      }
     }
     if (this.dnaGroup) {
       this.dnaGroup.position.copy(this.getDnaModelPosition());
@@ -2905,6 +2990,8 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   }
 
   private getSensorSequenceModelPosition(): THREE.Vector3 {
+    if (this.sensorGifMode) return new THREE.Vector3(0, -0.18, 0);
+
     const width = this.getViewportSize().width;
     const portraitProgress = this.getPortraitProgress();
 
@@ -2940,6 +3027,8 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   }
 
   private getSensorSequenceModelScale(): number {
+    if (this.sensorGifMode) return this.getInitialModelScale();
+
     const width = this.getViewportSize().width;
     if (width < 760) return 0.72;
     if (width < 1100) return 0.66;
@@ -2979,6 +3068,8 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   }
 
   private getSensorSequenceModelRotation(): THREE.Euler {
+    if (this.sensorGifMode) return this.initialModelRotation.clone();
+
     const portraitProgress = this.getPortraitProgress();
 
     const straightRotation = new THREE.Euler(this.initialModelRotation.x, 0, 0);
