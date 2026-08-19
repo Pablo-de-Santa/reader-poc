@@ -149,6 +149,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private pointerUpHandler = () => this.onPointerUp();
   private sensorGifTimeoutId = 0;
   private sensorGifFrameId = 0;
+  private sensorLoopTimeline?: gsap.core.Timeline;
   private sensorGifMode = false;
 
   ngAfterViewInit(): void {
@@ -190,6 +191,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     cancelAnimationFrame(this.frameId);
     cancelAnimationFrame(this.sensorGifFrameId);
+    this.sensorLoopTimeline?.kill();
     window.clearTimeout(this.resizeRefreshId);
     window.clearTimeout(this.initialScrollResetId);
     window.clearTimeout(this.sensorGifTimeoutId);
@@ -209,53 +211,39 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   }
 
   playSensorGif(): void {
-    if (!this.scrollTimeline || !this.scrollTriggerInstance || this.sensorGifFrameId) return;
+    if (this.sensorLoopTimeline?.isActive()) return;
 
     window.clearTimeout(this.sensorGifTimeoutId);
     this.prepareSensorGifScene();
     this.hero.nativeElement.classList.add('is-sensor-gif-capturing');
-    const captureButton = this.hero.nativeElement.querySelector<HTMLElement>('.sensor-gif-control');
     this.canvasHost.nativeElement.style.opacity = '1';
-    if (captureButton) captureButton.style.visibility = 'hidden';
 
-    const trigger = this.scrollTriggerInstance;
-    const startScroll = Math.max(0, trigger.start);
-    const insertionEndTime = 2.95;
-    const targetProgress = THREE.MathUtils.clamp(insertionEndTime / this.scrollTimeline.duration(), 0, 1);
-    const targetScroll = trigger.start + (trigger.end - trigger.start) * targetProgress;
-    const runDuration = 6000;
+    if (!this.sensorGroup) return;
 
-    window.scrollTo({ top: startScroll, left: 0, behavior: 'auto' });
-    this.scrollProgressCurrent = 0;
-    this.scrollProgressTarget = 0;
-    this.scrollTimeline.progress(0);
-    this.hero.nativeElement.style.setProperty('--scroll-progress', '0');
+    const entryX = this.getSensorEntryX();
+    this.sensorGroup.visible = true;
+    this.sensorGroup.position.set(entryX, this.cartridgeSlotY, this.cartridgeSlotZ);
 
-    const startedAt = performance.now();
-    const animateCapture = (now: number) => {
-      const progress = THREE.MathUtils.clamp((now - startedAt) / runDuration, 0, 1);
-      const easedProgress = progress * progress * (3 - 2 * progress);
-      const scrollTop = startScroll + (targetScroll - startScroll) * easedProgress;
-
-      window.scrollTo({ top: scrollTop, left: 0, behavior: 'auto' });
-      this.scrollProgressCurrent = targetProgress * easedProgress;
-      this.scrollProgressTarget = this.scrollProgressCurrent;
-      this.scrollTimeline?.progress(this.scrollProgressCurrent);
-      this.hero.nativeElement.style.setProperty('--scroll-progress', this.scrollProgressCurrent.toFixed(4));
-
-      if (progress < 1) {
-        this.sensorGifFrameId = requestAnimationFrame(animateCapture);
-      } else {
-        this.sensorGifFrameId = 0;
-        this.canvasHost.nativeElement.style.opacity = '0';
-      }
-    };
-
-    this.sensorGifFrameId = requestAnimationFrame(animateCapture);
+    // Keep the reader fixed and loop only the physical insertion/removal.
+    this.sensorLoopTimeline?.kill();
+    this.sensorLoopTimeline = gsap.timeline({
+      repeat: -1,
+      yoyo: true,
+      repeatDelay: 0.2,
+    });
+    this.sensorLoopTimeline
+      .to(this.sensorGroup.position, {
+        x: this.cartridgeInsertedX,
+        duration: 1.05,
+        ease: 'power1.inOut',
+      })
+      .to({}, { duration: 0.4 });
   }
 
   private prepareSensorGifScene(): void {
     this.sensorGifMode = true;
+    this.scrollTriggerInstance?.disable();
+    this.scrollTimeline?.pause(0);
     this.openingOrientationTimeline?.kill();
     this.isTopInteractive = false;
     this.hero.nativeElement.classList.add('is-sensor-gif-ready');
@@ -267,6 +255,10 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     if (this.nebulaBackground) this.nebulaBackground.visible = false;
     if (this.sensorConstellation) this.sensorConstellation.visible = false;
     if (this.sensorMessage) this.sensorMessage.visible = false;
+    this.setFallbackReaderVisibility(true);
+    this.model && (this.model.visible = true);
+    this.topRotationRig && (this.topRotationRig.visible = true);
+    if (this.sensorGroup) this.sensorGroup.visible = true;
     this.topRotationRig?.position.copy(this.getSensorSequenceModelPosition());
     this.topRotationRig?.rotation.set(0, 0, 0);
     this.topRotationRig?.scale.setScalar(this.getSensorSequenceModelScale());
