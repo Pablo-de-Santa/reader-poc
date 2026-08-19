@@ -7,7 +7,7 @@
   height: 100vh;
   height: 100svh;
   overflow: hidden;
-  background: #07050d;
+  // background: #07050d;
   color: #f7efe2;
   cursor: grab;
 }
@@ -41,10 +41,10 @@
   inset: 0;
   z-index: 0;
   background:
-    linear-gradient(90deg, rgba(245, 244, 240, 0.78) 0%, rgba(245, 244, 240, 0.52) 43%, rgba(245, 244, 240, 0.22) 100%),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.65) 43%, rgba(255, 255, 255, 0.50) 100%),
     url('/assets/images/image.png') center / cover no-repeat;
-  filter: saturate(0.62) contrast(0.9) brightness(1.03);
-  opacity: 0.84;
+  filter: none;
+  opacity: 1;
   pointer-events: none;
 }
 
@@ -758,7 +758,6 @@
   font-size: 0.68em;
   font-weight: 800;
   letter-spacing: 0.12em;
-  text-transform: uppercase;
 }
 
 .reader-hero.is-product-cta .marketplace-cta p,
@@ -1060,9 +1059,7 @@
   font-weight: 760;
   line-height: 1.08;
   letter-spacing: 0;
-  text-shadow:
-    0 0 0.18em rgba(255, 255, 255, 0.98),
-    0 0.08em 0.38em rgba(255, 255, 255, 0.78);
+  text-shadow: 0 0.06em 0.18em rgba(255, 255, 255, 0.34);
 }
 
 .reader-headline > span {
@@ -1090,9 +1087,7 @@
   overflow-wrap: normal;
   word-break: normal;
   text-wrap: balance;
-  text-shadow:
-    0 0 0.18em rgba(255, 255, 255, 0.98),
-    0 0.08em 0.38em rgba(255, 255, 255, 0.78);
+  text-shadow: 0 0.06em 0.18em rgba(255, 255, 255, 0.34);
   will-change: clip-path, filter, transform, opacity;
 }
 
@@ -1105,11 +1100,10 @@
   margin: clamp(3rem, 8dvh, 6rem) 0 0;
   color: rgba(64, 0, 143, 0.9);
   font-size: calc(var(--body-size) * 2.1);
+  font-weight: 500;
   line-height: 1.55;
   transform: none;
-  text-shadow:
-    0 0 0.22em rgba(255, 255, 255, 0.98),
-    0 0.08em 0.34em rgba(255, 255, 255, 0.82);
+  text-shadow: 0 0.06em 0.18em rgba(255, 255, 255, 0.34);
 }
 
 .reader-support {
@@ -1154,14 +1148,13 @@
 .sample-copy {
   position: absolute;
   right: clamp(1rem, 3vw, 4rem);
-  top: var(--banner-content-top);
+  top: 4dvh;
   z-index: 4;
   width: min(18rem, 18vw);
-  color: #40008f;
+  --sample-type-size: clamp(1.25rem, 3.55vh, 2.7rem);
+  color: #000;
   text-align: left;
-  text-shadow:
-    0 0 0.18em rgba(255, 255, 255, 1),
-    0 0.08em 0.34em rgba(255, 255, 255, 0.86);
+  text-shadow: 0 0.05em 0.14em rgba(255, 255, 255, 0.58);
   transform: none;
   opacity: 0;
   pointer-events: none;
@@ -1170,17 +1163,16 @@
 .sample-copy p {
   max-width: 44rem;
   margin: 0;
-  color: rgba(64, 0, 143, 0.88);
-  font-size: clamp(0.72rem, 1vw, 0.95rem);
+  color: #000;
+  font-size: var(--sample-type-size);
   line-height: 1.42;
 }
 
 .sample-copy-label {
-  margin-bottom: 0.45rem !important;
-  font-size: clamp(0.72rem, 0.9vw, 0.95rem) !important;
+  margin-bottom: 0.3rem !important;
+  font-size: var(--sample-type-size) !important;
   font-weight: 700;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .sample-fluid-stage {
@@ -1195,7 +1187,8 @@
 .sample-fluid {
   position: relative;
   margin: 0;
-  font-size: clamp(1.15rem, 3.2vh, 2.6rem);
+  color: #000;
+  font-size: var(--sample-type-size);
   font-weight: 700;
 }
 
@@ -1307,18 +1300,18 @@
 
   .family-backdrop {
     background-position: 62% center;
-    opacity: 0.62;
+    // opacity: 0.78;
   }
 
   .sample-copy {
     right: 1rem;
-    top: var(--banner-content-top);
+    top: 4dvh;
     width: min(12rem, 42vw);
     transform: none;
   }
 
   .sample-fluid-stage { height: min(46vh, 22rem); }
-  .sample-fluid { font-size: clamp(0.95rem, 4.2vw, 1.45rem); }
+  .sample-copy { --sample-type-size: clamp(0.95rem, 4.2vw, 1.45rem); }
 
   .reader-copy {
     --headline-size: clamp(1.42rem, min(6.4vw, 5.3dvh), 2.85rem);

@@ -43,7 +43,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     'Healthier Lives',
   ];
 
-  readonly sampleFluids = ['whole blood', 'serum', 'urine', 'saliva', 'water', 'most liquids'];
+  readonly sampleFluids = ['Whole blood', 'Serum', 'Urine', 'Saliva', 'Water', 'Most liquids'];
 
   private readonly initialModelPosition = new THREE.Vector3(0.7, -0.05, 0);
   private readonly initialModelRotation = new THREE.Euler(0.26, -0.48, 0);
@@ -250,7 +250,8 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.hero.nativeElement.style.cursor = 'grab';
     host.appendChild(this.renderer.domElement);
 
-    this.createNebulaBackground();
+    // The banner uses the family photo as its complete background. A nebula
+    // plane here would tint and darken that image, so keep it out of this scene.
     this.scene.add(new THREE.AmbientLight('#ffffff', 0.16));
 
     const topLight = new THREE.SpotLight('#f4e5c4', 82, 15, Math.PI / 6.5, 0.52, 1.25);
@@ -877,38 +878,38 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       .to(instructionFluidNodes[5] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', yPercent: 0, duration: 0.12 }, 4.48)
       .set(pipette?.position ?? {}, { y: 9.5 }, 3.5)
       .set(pipette ?? {}, { visible: true }, 3.5)
-      .to(pipette?.position ?? {}, { y: 0.88, duration: 0.72, ease: 'power2.out' }, 3.5)
+      .to(pipette?.position ?? {}, { y: 0.88, duration: 1.02, ease: 'power2.out' }, 3.5)
       .to(this.topLight ?? {}, { intensity: 44, duration: 0.28, ease: 'power2.out' }, 3.7)
       .to(this.frontFill ?? {}, { intensity: 0.22, duration: 0.28, ease: 'power2.out' }, 3.7)
-      .set(droplet ?? {}, { visible: true }, 4.22)
-      .set(drop ?? {}, { visible: true }, 4.22)
-      .to(drop?.scale ?? {}, { x: 0.68, y: 0.68, z: 0.68, duration: 0.04 }, 4.22)
-      .to(drop?.position ?? {}, { y: 0.055, duration: 0.18, ease: 'power1.in' }, 4.24)
-      .set(puddle ?? {}, { visible: true }, 4.34)
-      .to(drop?.scale ?? {}, { x: 0.24, y: 0.18, z: 0.24, duration: 0.07 }, 4.35)
-      .to(puddle?.scale ?? {}, { x: 1, y: 1, z: 1, duration: 0.1 }, 4.35)
-      .set(drop ?? {}, { visible: false }, 4.41)
-      .to(pipette?.position ?? {}, { y: 5.8, duration: 0.32, ease: 'power2.in' }, 4.46)
-      .set(pipette ?? {}, { visible: false }, 4.8)
-      .to(puddle?.scale ?? {}, { x: 0, y: 0, z: 0, duration: 0.08 }, 4.52)
-      .set(puddle ?? {}, { visible: false }, 4.62)
-      .set(droplet ?? {}, { visible: false }, 4.62)
-      .to(screenPanels[1] ?? {}, { autoAlpha: 0, filter: 'blur(12px)', duration: 0.2, ease: 'power2.in' }, 4.72)
-      .to(screenPanels[2] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', duration: 0.3, ease: 'power2.out' }, 4.82)
-      .to(progressOrb ?? {}, { '--analysis-progress': '360deg', duration: 0.98, ease: 'power1.inOut' }, 4.84)
-      .call(() => this.updateResultTimestamp(resultTime), undefined, 5.82)
-      .to(progressCheck ?? {}, { autoAlpha: 1, duration: 0.01, ease: 'none' }, 5.82)
+      .set(droplet ?? {}, { visible: true }, 4.56)
+      .set(drop ?? {}, { visible: true }, 4.56)
+      .to(drop?.scale ?? {}, { x: 0.68, y: 0.68, z: 0.68, duration: 0.04 }, 4.56)
+      .to(drop?.position ?? {}, { y: 0.055, duration: 0.2, ease: 'power1.in' }, 4.58)
+      .set(puddle ?? {}, { visible: true }, 4.7)
+      .to(drop?.scale ?? {}, { x: 0.24, y: 0.18, z: 0.24, duration: 0.07 }, 4.7)
+      .to(puddle?.scale ?? {}, { x: 1, y: 1, z: 1, duration: 0.1 }, 4.7)
+      .set(drop ?? {}, { visible: false }, 4.77)
+      .to(pipette?.position ?? {}, { y: 5.8, duration: 0.52, ease: 'power2.in' }, 4.86)
+      .set(pipette ?? {}, { visible: false }, 5.38)
+      .to(puddle?.scale ?? {}, { x: 0, y: 0, z: 0, duration: 0.08 }, 5.02)
+      .set(puddle ?? {}, { visible: false }, 5.12)
+      .set(droplet ?? {}, { visible: false }, 5.12)
+      .to(screenPanels[1] ?? {}, { autoAlpha: 0, filter: 'blur(12px)', duration: 0.2, ease: 'power2.in' }, 5.3)
+      .to(screenPanels[2] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', duration: 0.3, ease: 'power2.out' }, 5.4)
+      .to(progressOrb ?? {}, { '--analysis-progress': '360deg', duration: 0.98, ease: 'power1.inOut' }, 5.42)
+      .call(() => this.updateResultTimestamp(resultTime), undefined, 6.4)
+      .to(progressCheck ?? {}, { autoAlpha: 1, duration: 0.01, ease: 'none' }, 6.4)
       .to(
         progressCheck ?? {},
         { attr: { 'stroke-dashoffset': 0 }, duration: 0.72, ease: 'power1.inOut' },
-        5.84,
+        6.42,
       )
-      .to(this.topLight ?? {}, { intensity: 82, duration: 0.26, ease: 'power2.inOut' }, 5)
-      .to(this.frontFill ?? {}, { intensity: 0.48, duration: 0.26, ease: 'power2.inOut' }, 5)
-      .to(screenPanels[2] ?? {}, { autoAlpha: 0, filter: 'blur(12px)', duration: 0.2, ease: 'power2.in' }, 6.64)
-      .to(screenPanels[3] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', duration: 0.3, ease: 'power2.out' }, 6.74)
-      .to(screenPanels[3] ?? {}, { autoAlpha: 0, filter: 'blur(12px)', duration: 0.24, ease: 'power2.in' }, 7.2)
-      .to(screenPanels[4] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', duration: 0.34, ease: 'power2.out' }, 7.3)
+      .to(this.topLight ?? {}, { intensity: 82, duration: 0.26, ease: 'power2.inOut' }, 5.58)
+      .to(this.frontFill ?? {}, { intensity: 0.48, duration: 0.26, ease: 'power2.inOut' }, 5.58)
+      .to(screenPanels[2] ?? {}, { autoAlpha: 0, filter: 'blur(12px)', duration: 0.2, ease: 'power2.in' }, 7.22)
+      .to(screenPanels[3] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', duration: 0.3, ease: 'power2.out' }, 7.32)
+      .to(screenPanels[3] ?? {}, { autoAlpha: 0, filter: 'blur(12px)', duration: 0.24, ease: 'power2.in' }, 7.78)
+      .to(screenPanels[4] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', duration: 0.34, ease: 'power2.out' }, 7.88)
       .to(screenPanels[4] ?? {}, { autoAlpha: 0, filter: 'blur(12px)', duration: 0.24, ease: 'power2.in' }, 8.42)
       .to(sampleCopy, { autoAlpha: 0, filter: 'blur(10px)', duration: 0.34, ease: 'power2.in' }, 8.5)
       .to(
@@ -2853,7 +2854,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     const trigger = this.scrollTriggerInstance;
     const start = trigger.start;
     const end = trigger.end;
-    const targetTimelineTime = 7.52; // dashboard fully visible, just before the laptop transition
+    const targetTimelineTime = 7.55; // result screen fully visible; stop before any result fade or morph
     const targetProgress = THREE.MathUtils.clamp(targetTimelineTime / this.scrollTimeline.duration(), 0, 1);
     const targetScroll = start + (end - start) * targetProgress;
     const startScroll = Math.max(0, start);
@@ -3141,9 +3142,9 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
   private getBannerPhoneOffsetY(): string {
     const viewport = this.getViewportSize();
-    if (viewport.width < 760) return '-15vh';
-    if (viewport.height < 680) return '-15vh';
-    return '-18vh';
+    if (viewport.width < 760) return '-12vh';
+    if (viewport.height < 680) return '-12vh';
+    return '-15vh';
   }
 
   private getDeviceModelPosition(kind: 'desktop' | 'laptop' | 'tablet' | 'phone'): THREE.Vector3 {
