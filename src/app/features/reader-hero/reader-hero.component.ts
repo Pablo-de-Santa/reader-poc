@@ -39,7 +39,14 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   @ViewChildren('instructionFluid') private instructionFluidElements!: QueryList<ElementRef<HTMLElement>>;
 
   readonly phrases = [
-    'Healthier Lives',
+    'A1C Tests',
+    'Allergies',
+    'STIs',
+    'Cardiac',
+    'Biomarkers',
+    'Proteins',
+    'Metabolites',
+    'Chemicals',
   ];
 
   readonly sampleFluids = ['whole blood', 'serum', 'urine', 'saliva', 'water', 'most liquids'];
@@ -752,7 +759,12 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     gsap.set(progressCheck, { autoAlpha: 0 });
     gsap.set(bluetoothSignal, { autoAlpha: 0, scale: 0.84 });
     gsap.set(bluetoothRings, { opacity: 0, scale: 0.42 });
-    gsap.set(sensorCta, { autoAlpha: 0, filter: 'blur(18px)', '--cta-y': '20px' });
+    gsap.set(sensorCta, {
+      autoAlpha: 0,
+      filter: 'blur(18px)',
+      '--cta-y': '20px',
+      pointerEvents: 'none',
+    });
     gsap.set(readerCopy, { autoAlpha: 1, filter: 'none', x: 0, y: 0 });
     gsap.set(readerCopyText, { autoAlpha: 1, filter: 'blur(0px)' });
     gsap.set(sampleCopy, { autoAlpha: 0, filter: 'blur(14px)', y: 18 });
@@ -1180,7 +1192,18 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       .to(this.sensorStarMotion, { fall: 1, duration: 0.9, ease: 'none' }, 14.06)
       .to(this.topLight ?? {}, { intensity: 82, duration: 0.46, ease: 'power2.inOut' }, 14.96)
       .to(this.frontFill ?? {}, { intensity: 0.48, duration: 0.46, ease: 'power2.inOut' }, 14.96)
-      .to(sensorCta, { autoAlpha: 1, filter: 'blur(0px)', '--cta-y': '0px', duration: 0.9, ease: 'none' }, 14.06);
+      .to(
+        sensorCta,
+        {
+          autoAlpha: 1,
+          filter: 'blur(0px)',
+          '--cta-y': '0px',
+          pointerEvents: 'auto',
+          duration: 0.9,
+          ease: 'none',
+        },
+        14.06,
+      );
   }
 
   private setupPhraseAnimation(): void {

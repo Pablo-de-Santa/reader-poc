@@ -1105,7 +1105,7 @@
   line-height: 1.08;
   overflow-wrap: normal;
   word-break: normal;
-  text-wrap: balance;
+  white-space: nowrap;
   will-change: clip-path, filter, transform, opacity;
 }
 
@@ -1120,6 +1120,22 @@
   line-height: 1.55;
   transform: translateY(-100%);
   text-shadow: 0 0.12em 0.45em rgba(0, 0, 0, 0.46);
+}
+
+.reader-copy p.diagnostic-phrases {
+  flex: 0 0 auto;
+  display: block;
+  align-items: initial;
+  max-width: 32rem;
+  margin: 1.25rem 0 0;
+  font-size: calc(var(--body-size) * 2);
+  line-height: 1.45;
+  transform: none;
+}
+
+.diagnostic-phrases > span {
+  display: block;
+  white-space: nowrap;
 }
 
 .sample-copy {
@@ -1200,6 +1216,8 @@
   font-weight: 760;
   background: #74e4b3;
   border-radius: 999px;
+  cursor: pointer;
+  text-decoration: none;
 }
 
 .progress {

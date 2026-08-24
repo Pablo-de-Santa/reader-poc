@@ -35,7 +35,7 @@ spec:
     spec:
       containers:
         - name: whiskey
-          image: biostreamdiag.azurecr.io/whiskey:1.0.0.1
+          image: biostreamdiag.azurecr.io/whiskey:1.0.0.2
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 4000
@@ -80,7 +80,7 @@ spec:
   tls:
     - secretName: star-bio-stream-ca-2025
   rules:
-    - host: dev-gsap.bio-stream.ca
+    - host: gsap.dev.bio-stream.ca
       http:
         paths:
           - path: /
