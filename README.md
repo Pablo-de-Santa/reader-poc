@@ -40,8 +40,8 @@ https://gsap.bio-stream.ca/
 The container builds the Angular app and serves the static output on port `4000`.
 
 ```bash
-docker build -t biostreamdiag.azurecr.io/whiskey:1.0.0.1 .
-docker push biostreamdiag.azurecr.io/whiskey:1.0.0.1
+docker build -t biostreamdiag.azurecr.io/whiskey:1.0.0.2 .
+docker push biostreamdiag.azurecr.io/whiskey:1.0.0.2
 ```
 
 ## AKS Environments
@@ -54,14 +54,14 @@ aks-deploy/Whiskey/
 
 Current environment hosts:
 
-- Development: `https://dev-gsap.bio-stream.ca`
-- Test/UAT: `https://test-gsap.bio-stream.ca`
+- Development: `https://gsap.dev.bio-stream.ca`
+- Test/UAT: `https://gsap.test.bio-stream.ca`
 - Production: `https://gsap.bio-stream.ca`
 
 The manifests deploy the same image:
 
 ```txt
-biostreamdiag.azurecr.io/whiskey:1.0.0.1
+biostreamdiag.azurecr.io/whiskey:1.0.0.2
 ```
 
 ## Repository
