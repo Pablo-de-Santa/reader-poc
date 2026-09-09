@@ -1,9 +1,9 @@
 .reader-hero {
   position: relative;
   isolation: isolate;
-  width: 100vw;
+  width: 100%;
   height: 100vh;
-  height: 100svh;
+  height: 100dvh;
   overflow: hidden;
   background: #07050d;
   color: #f7efe2;
@@ -65,9 +65,9 @@
   position: absolute;
   inset: 0;
   z-index: 1;
-  width: 100vw;
+  width: 100%;
   height: 100vh;
-  height: 100svh;
+  height: 100dvh;
   cursor: grab;
 }
 
@@ -83,8 +83,8 @@
 .reader-hero.is-product-cta .device-shell {
   position: fixed;
   inset: 0;
-  width: 100vw;
-  height: 100svh;
+  width: 100%;
+  height: 100dvh;
   transform: none;
   border-color: transparent;
   border-radius: 0;
@@ -183,11 +183,13 @@
 }
 
 .device-screen {
+  --screen-clip-radius: max(0.5rem, var(--screen-r));
   position: absolute;
   inset: 0;
-  border-radius: var(--screen-r);
+  border-radius: var(--screen-clip-radius);
   background: var(--screen-bg);
   overflow: hidden;
+  clip-path: inset(0 round var(--screen-clip-radius));
 }
 
 .screen-page {
@@ -243,23 +245,6 @@
   grid-template-rows: auto minmax(0, 1fr) auto;
   gap: clamp(0.28rem, 1.25cqw, 0.58rem);
   padding-bottom: clamp(2.3rem, 6.4vh, 3.7rem);
-}
-
-.screen-panel-tablet-dashboard {
-  grid-template-columns: minmax(0, 0.96fr) minmax(0, 1.04fr);
-  grid-template-areas:
-    "topbar topbar"
-    "card metrics"
-    "chart chart";
-  grid-template-rows: auto auto minmax(0, 1fr);
-}
-
-.screen-panel-laptop-research {
-  grid-template-rows: auto minmax(0, 1fr) auto;
-}
-
-.screen-panel-desktop-research {
-  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
 .screen-panel-final {
@@ -725,7 +710,7 @@
 
 .marketplace-cta {
   display: grid;
-  grid-template-rows: auto auto auto 1fr auto;
+  grid-template-rows: auto auto auto 1fr;
   justify-items: center;
   min-height: 100%;
   padding: max(1.25rem, 6svh) 1.45em max(1.25rem, 7svh);
@@ -743,7 +728,7 @@
 
 .reader-hero.is-product-cta .marketplace-cta p,
 .reader-hero.is-product-cta .marketplace-cta h3,
-.reader-hero.is-product-cta .marketplace-cta span {
+.reader-hero.is-product-cta .marketplace-cta > span {
   color: #f7efe2;
   text-shadow: 0 0.12em 0.55em rgba(0, 0, 0, 0.62);
 }
@@ -758,7 +743,7 @@
   font-size: clamp(1.55rem, 2.15vw, 2.8rem);
 }
 
-.reader-hero.is-product-cta .marketplace-cta span {
+.reader-hero.is-product-cta .marketplace-cta > span {
   max-width: 38em;
   font-size: clamp(0.78rem, 0.9vw, 1rem);
 }
@@ -777,7 +762,7 @@
   line-height: 1.02;
 }
 
-.marketplace-cta span {
+.marketplace-cta > span {
   max-width: 28em;
   margin-top: 0.64em;
   color: #5b5360;
@@ -819,15 +804,7 @@
 }
 
 @keyframes marketplaceGlow {
-  50% { transform: translate(1%, -1%) scale(1.03); box-shadow: 0 0.32rem 1.4rem rgba(114, 88, 151, 0.32), 0.28rem -0.16rem 1.35rem rgba(111, 231, 189, 0.42), -0.32rem 0.18rem 1.25rem rgba(255, 119, 202, 0.35); }
-}
-
-@media (max-width: 759px) {
-  .screen-page { overflow: visible; }
-}
-
-@media (max-width: 900px), (orientation: portrait) {
-  .screen-page { overflow: visible; }
+  50% { box-shadow: 0 0.32rem 1.8rem 0.2rem rgba(114, 88, 151, 0.65), 0.28rem -0.16rem 1.8rem rgba(111, 231, 189, 0.6), -0.32rem 0.18rem 1.7rem rgba(255, 119, 202, 0.55); }
 }
 
 @container (min-width: 28rem) {
@@ -920,14 +897,6 @@
   height: 14%;
   opacity: var(--keyboard-o);
   border-radius: 0 0 1rem 1rem;
-}
-
-.device-home {
-  bottom: 3%;
-  width: 0.56rem;
-  height: 0.56rem;
-  opacity: var(--home-o);
-  border-radius: 999px;
 }
 
 .bluetooth-signal {
@@ -1059,7 +1028,7 @@
 .eyebrow {
   margin: 0 0 1rem;
   color: rgba(247, 239, 226, 0.72);
-  font-size: var(--eyebrow-size);
+  font-size: var(--eyebrow-size, clamp(0.7rem, 1vw, 0.9rem));
   letter-spacing: 0.18em;
   text-shadow: 0 0.12em 0.45em rgba(0, 0, 0, 0.42);
   text-transform: uppercase;
@@ -1240,30 +1209,6 @@
   background: #8f55ff;
 }
 
-@media (max-width: 1100px) and (min-width: 769px) {
-  .reader-copy {
-    --headline-size: clamp(2.2rem, min(4.6vw, 9dvh), 4.35rem);
-    --body-size: clamp(0.82rem, calc(var(--headline-size) * 0.21), 1rem);
-    width: 35vw;
-    min-width: 0;
-    padding-left: clamp(2rem, 4vw, 3.2rem);
-    padding-right: 0;
-  }
-
-  .reader-copy::before {
-    right: 0;
-  }
-
-  .reader-headline {
-    max-width: none;
-  }
-
-  .reader-copy p:last-child {
-    max-width: 22rem;
-    transform: translateY(-35%);
-  }
-}
-
 @media (min-width: 2200px) {
   .reader-copy {
     --headline-size: max(5.45rem, min(4.2vw, 8dvh));
@@ -1296,140 +1241,92 @@
   }
 }
 
-@media (max-width: 768px) {
-  .device-copy {
-    top: auto;
-    bottom: clamp(1.5rem, 5vh, 3rem);
-    width: min(13rem, 38vw);
-  }
 
-  .device-copy h2 {
-    font-size: clamp(1.05rem, 4.4vw, 1.45rem);
-  }
-
-  .device-copy p:last-child {
-    display: none;
-  }
-
+/* The same continuous portrait blend drives the header and the WebGL reader. */
+@media (max-width: 1100px), (max-aspect-ratio: 13/10) {
   .reader-copy {
-    --headline-size: clamp(1.42rem, min(6.4vw, 5.3dvh), 2.85rem);
-    --eyebrow-size: clamp(0.56rem, calc(var(--headline-size) * 0.24), 0.72rem);
-    --body-size: clamp(0.7rem, calc(var(--headline-size) * 0.34), 0.98rem);
-    width: 100vw;
+    --headline-size: var(--intro-headline);
+    width: var(--intro-width);
     min-width: 0;
-    height: 30vh;
-    height: 30dvh;
-    justify-content: space-between;
-    padding: clamp(0.8rem, 2.8dvh, 1.5rem) clamp(1rem, 5vw, 2rem) clamp(0.75rem, 2dvh, 1.15rem);
+    height: calc(100% - var(--layout-stack) * 68%);
+    padding: max(env(safe-area-inset-top), var(--intro-top)) var(--intro-inset) 1rem;
   }
 
   .reader-copy::before {
     inset: 0;
-    width: auto;
-    background: linear-gradient(
-      180deg,
-      rgba(5, 5, 7, 0.78) 0%,
-      rgba(5, 5, 7, 0.66) 48%,
-      rgba(5, 5, 7, 0.3) 78%,
-      transparent 100%
-    );
-    border-radius: 0;
-    box-shadow: none;
-    mask-image: none;
+    width: 100vw;
+    background: linear-gradient(calc(90deg + var(--layout-stack) * 90deg), rgba(5, 5, 7, 0.3), transparent 85%);
   }
 
-  .reader-copy::after {
-    display: none;
-  }
+  .reader-headline { flex: 0 0 auto; }
 
-  .eyebrow {
-    margin-bottom: clamp(0.35rem, 1dvh, 0.65rem);
-    color: rgba(247, 239, 226, 0.84);
-  }
-
-  .reader-headline {
-    flex: 0 0 auto;
-    max-width: none;
-    line-height: 1.02;
-  }
-
-  .phrase-stage {
-    height: 1.08em;
-  }
-
-  .reader-copy p:last-child {
-    flex: 0 0 auto;
-    align-items: flex-start;
-    max-width: 36rem;
-    margin: auto 0 0;
-    color: rgba(247, 239, 226, 0.92);
-    line-height: 1.36;
-    transform: none;
+  .reader-copy p.diagnostic-phrases {
+    margin-top: clamp(0.5rem, 2dvh, 1.25rem);
+    font-size: var(--intro-body);
+    line-height: 1.3;
   }
 }
 
-@media (max-height: 820px) {
-  .reader-copy {
-    --headline-size: clamp(2.25rem, min(5.15vw, 10.5dvh), 4.75rem);
-    --body-size: clamp(0.82rem, calc(var(--headline-size) * 0.21), 1.02rem);
-    padding-top: clamp(2.7rem, 7.5dvh, 5.5rem);
-  }
+.reader-hero { --page-gutter: clamp(1rem, 4vw, 3rem); }
+.reader-canvas { height: 100%; }
+.reader-headline { min-height: min-content; }
+.device-copy { width: max(0px, min(30rem, calc((100vw - var(--device-w)) / 2 - var(--copy-edge) - var(--copy-gap)))); }
+.sample-copy { top: 66%; width: min(34rem, calc(100% - 2 * var(--page-gutter))); }
+.bluetooth-signal { top: 67.25%; left: 50%; width: clamp(2rem, 7vmin, 3.6rem); height: auto; aspect-ratio: 1; }
 
-  .reader-copy::before {
-    top: clamp(2rem, calc(7.5dvh - 0.85rem), 4.4rem);
-  }
+.sensor-cta {
+  width: min(58rem, calc(100% - 2 * var(--page-gutter)));
+  max-height: calc(100% - 2rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  overflow-y: auto;
+}
+.sensor-cta h2 { font-size: clamp(2rem, min(7.8vw, 13dvh), 7.5rem); text-wrap: balance; }
+.sensor-cta p:not(.eyebrow) {
+  margin-top: clamp(0.65rem, 2.4dvh, 1.8rem);
+  font-size: clamp(0.9rem, min(1.35vw, 3.5dvh), 1.28rem);
+  text-wrap: pretty;
+}
+.sensor-cta a { margin-top: clamp(0.65rem, 2.6dvh, 2rem); }
+.sensor-cta a:focus-visible, .marketplace-buy:focus-visible { outline: 3px solid #fff; outline-offset: 5px; }
 
-  .reader-headline {
-    line-height: 1.03;
-  }
+.marketplace-cta {
+  min-height: 0;
+  height: 100%;
+  padding: max(1rem, 6dvh, env(safe-area-inset-top)) var(--page-gutter) max(1rem, 7dvh, env(safe-area-inset-bottom));
+}
+.reader-hero.is-product-cta .marketplace-cta h3 {
+  font-size: clamp(1.35rem, min(2.15vw, 5.5dvh), 2.8rem);
+  text-wrap: balance;
+}
+.reader-hero.is-product-cta .marketplace-cta > span { text-wrap: pretty; }
+.reader-hero.is-product-cta .marketplace-buy { margin-top: 1rem; }
 
-.phrase-stage {
-    height: 1.08em;
+/* Screen content responds to its animated frame, including short landscapes. */
+@container (max-height: 30rem) {
+  .app-header { padding: min(0.84em, 2.4cqh) 1.12em; }
+  .app-instruction, .app-processing, .app-result,
+  .screen-panel-phone-dashboard .app-instruction { padding: min(1.18em, 2cqh) 1em; }
+  .app-fluid-stage, .screen-panel-phone-dashboard .app-fluid-stage {
+    flex-shrink: 0;
+    height: min(4.25em, 10cqh);
+    margin: 0.4em 0;
   }
-
-  .reader-copy p:last-child {
-    max-width: 25rem;
-    line-height: 1.45;
+  .screen-panel-phone-dashboard .app-sensor-figure {
+    flex-shrink: 0;
+    width: min(3.45em, 9cqh);
+    margin: min(0.56em, 1cqh) auto;
   }
+  .app-progress-orb { flex-shrink: 0; width: min(6.6em, 25cqh); margin: min(2em, 4cqh) 0 0.5em; }
+  .app-result-card { margin-top: min(1.7em, 3cqh); }
 }
 
-@media (max-height: 680px) {
-  .reader-copy {
-    --headline-size: clamp(2rem, min(4.75vw, 10dvh), 4rem);
-    --body-size: clamp(0.78rem, calc(var(--headline-size) * 0.21), 0.96rem);
-  }
-
-.phrase-stage {
-    height: 1.08em;
-  }
-
-  .reader-copy p:last-child {
-    max-width: 23rem;
-    line-height: 1.35;
-  }
+@media (max-width: 600px) and (min-aspect-ratio: 13/10) {
+  .reader-copy { --intro-headline: clamp(1.1rem, 4.8vw, 2rem); --intro-body: clamp(0.85rem, 3vw, 1.2rem); }
 }
-
-@media (max-width: 768px) {
-  .reader-copy {
-    --headline-size: clamp(1.42rem, min(6.4vw, 5.3dvh), 2.85rem);
-    --body-size: clamp(0.7rem, calc(var(--headline-size) * 0.34), 0.98rem);
-    height: 30vh;
-    height: 30dvh;
-    justify-content: space-between;
-    padding: clamp(0.8rem, 2.8dvh, 1.5rem) clamp(1rem, 5vw, 2rem) clamp(0.75rem, 2dvh, 1.15rem);
-  }
-
-  .reader-copy::before {
-    inset: 0;
-    height: auto;
-  }
-
-.phrase-stage {
-    height: 1.08em;
-  }
-
-  .reader-copy p:last-child {
-    margin: auto 0 0;
-    line-height: 1.36;
-  }
+@media (max-height: 500px) and (min-aspect-ratio: 13/10) {
+  .reader-copy { padding-top: max(1rem, env(safe-area-inset-top)); }
+  .reader-copy p.diagnostic-phrases { margin-top: 0.65rem; font-size: clamp(0.95rem, 4dvh, 1.5rem); }
+  .marketplace-cta { padding-top: 1rem; padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .reader-hero.is-product-cta .marketplace-cta > span { max-width: 42em; }
+  .reader-hero.is-product-cta .marketplace-buy { min-height: 2.75rem; padding-block: 0.5em; }
+  .sensor-cta h2 { max-width: 22ch; }
 }

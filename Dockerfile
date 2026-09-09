@@ -1,5 +1,5 @@
 # Build Angular app
-FROM node:20-alpine AS build
+FROM node:24-alpine AS build
 
 WORKDIR /app
 
@@ -13,7 +13,7 @@ ARG ANGULAR_CONFIGURATION=production
 RUN npm run build -- --configuration ${ANGULAR_CONFIGURATION}
 
 # Runtime image
-FROM node:20-alpine AS runtime
+FROM node:24-alpine AS runtime
 
 WORKDIR /app
 
