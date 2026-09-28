@@ -1,3 +1,18 @@
 <main>
-  <app-reader-hero />
+  @defer (on idle) {
+    <app-reader-hero />
+  } @placeholder {
+    <section class="experience-preview" aria-label="BioStream reader and sensors">
+      <p>BioStream</p>
+      <h1>Explore the trax reader and sensors.</h1>
+      <p>An interactive look at sample handling, sensing, and connected results.</p>
+      <a href="https://www.bio-stream.ca/category/all-products">Explore sensors</a>
+    </section>
+  } @error {
+    <section class="experience-preview">
+      <h1>Explore the trax reader and sensors.</h1>
+      <p>The interactive experience could not load. You can still explore our sensors.</p>
+      <a href="https://www.bio-stream.ca/category/all-products">Explore sensors</a>
+    </section>
+  }
 </main>
