@@ -1,5 +1,5 @@
 import { Component } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
+import { DeferBlockBehavior, DeferBlockState, TestBed } from '@angular/core/testing';
 import { vi } from 'vitest';
 import type { App } from './app';
 
@@ -22,7 +22,7 @@ describe('App', () => {
   afterAll(() => vi.unstubAllGlobals());
 
   beforeEach(async () => {
-    await TestBed.configureTestingModule({ imports: [appType] })
+    await TestBed.configureTestingModule({ imports: [appType], deferBlockBehavior: DeferBlockBehavior.Manual })
       .overrideComponent(appType, { set: { imports: [ReaderHeroStub] } })
       .compileComponents();
   });
@@ -32,9 +32,19 @@ describe('App', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
+  it('shows useful content before loading the WebGL experience', () => {
+    const fixture = TestBed.createComponent(appType);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.experience-preview h1')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.experience-preview a')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('app-reader-hero')).toBeNull();
+  });
+
   it('should render the reader hero', async () => {
     const fixture = TestBed.createComponent(appType);
-    await fixture.whenStable();
+    fixture.detectChanges();
+    const [block] = await fixture.getDeferBlocks();
+    await block.render(DeferBlockState.Complete);
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('main > app-reader-hero')).not.toBeNull();
   });

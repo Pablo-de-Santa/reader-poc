@@ -1,3 +1,13 @@
-main {
+main { min-height: 100vh; }
+.experience-preview {
+  box-sizing: border-box;
   min-height: 100vh;
+  min-height: 100dvh;
+  padding: clamp(2rem, 8vw, 7rem);
+  background: #07050d;
+  color: #f7efe2;
+  font-family: system-ui, sans-serif;
+  h1 { max-width: 14ch; font-size: clamp(2.5rem, 6vw, 5rem); line-height: 1.08; }
+  p { max-width: 40rem; line-height: 1.6; }
+  a { color: inherit; text-underline-offset: 0.25em; }
 }

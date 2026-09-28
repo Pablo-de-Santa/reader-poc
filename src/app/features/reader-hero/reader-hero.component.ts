@@ -9,7 +9,7 @@ import {
   inject,
 } from '@angular/core';
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { RoundedGeometryCache } from './rendering/rounded-geometry-cache';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { gsap } from 'gsap';
@@ -67,6 +67,13 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
   private scene!: THREE.Scene;
   private destroyed = false;
+  private readonly roundedGeometries = new RoundedGeometryCache();
+  private startupFrameId = 0;
+  private startupTimerId = 0;
+  private readerAssetReady = false;
+  private sceneReady = false;
+  private readerRevealed = false;
+  private readerLoadTimeoutId = 0;
   private retiredObjects: THREE.Object3D[] = [];
   private camera!: THREE.PerspectiveCamera;
   private renderer!: THREE.WebGLRenderer;
@@ -174,6 +181,15 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private pointerUpHandler = () => this.onPointerUp();
 
   ngAfterViewInit(): void {
+    // Let the HTML headline paint before doing WebGL and scene construction work.
+    this.startupFrameId = requestAnimationFrame(() => {
+      this.startupTimerId = window.setTimeout(() => {
+        if (!this.destroyed) this.initializeExperience();
+      }, 0);
+    });
+  }
+
+  private initializeExperience(): void {
     if ('scrollRestoration' in window.history) {
       window.history.scrollRestoration = 'manual';
     }
@@ -192,7 +208,6 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       if (object) this.sensorPresentation.add(object);
     }
     this.buildScrollAnimation();
-    this.setupPhraseAnimation();
     this.animate();
     window.addEventListener('pageshow', this.pageShowHandler);
     window.addEventListener('resize', this.resizeHandler);
@@ -209,13 +224,17 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       this.onResize();
       this.syncInteractionMode();
       ScrollTrigger.refresh();
-      this.runOpeningOrientationAnimation();
+      this.sceneReady = true;
+      this.revealReaderWhenReady();
     });
     this.initialScrollResetId = window.setTimeout(() => this.resetScrollPosition(), 90);
   }
 
   ngOnDestroy(): void {
     this.destroyed = true;
+    cancelAnimationFrame(this.startupFrameId);
+    window.clearTimeout(this.startupTimerId);
+    window.clearTimeout(this.readerLoadTimeoutId);
     cancelAnimationFrame(this.frameId);
     cancelAnimationFrame(this.openingFrameId);
     this.setOpeningScrollLocked(false);
@@ -236,6 +255,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.openingOrientationTimeline?.kill();
     ScrollTrigger.normalizeScroll(false);
     disposeObjects([this.scene, this.camera, this.optimizedCartridgeTemplate, ...this.retiredObjects]);
+    this.roundedGeometries.clear();
     this.retiredObjects = [];
     this.renderer?.dispose();
   }
@@ -562,9 +582,27 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.loadCartridgeAsset();
   }
 
+  private revealReaderWhenReady(): void {
+    if (this.destroyed || !this.sceneReady || !this.readerAssetReady || this.readerRevealed) return;
+    this.readerRevealed = true;
+    window.clearTimeout(this.readerLoadTimeoutId);
+    this.runOpeningOrientationAnimation();
+    // Render the opening pose before revealing the canvas, so there is no empty-frame flash.
+    this.renderer.render(this.scene, this.camera);
+    this.canvasHost.nativeElement.classList.add('is-ready');
+    this.setupPhraseAnimation();
+  }
+
   private loadReaderAsset(): void {
     if (!this.model) return;
 
+    // Preserve a usable opening even if the model request stalls.
+    this.readerLoadTimeoutId = window.setTimeout(() => {
+      if (this.destroyed || this.readerAssetReady) return;
+      this.setFallbackReaderVisibility(true);
+      this.readerAssetReady = true;
+      this.revealReaderWhenReady();
+    }, 8000);
     const manager = new THREE.LoadingManager();
     manager.setURLModifier((url) => {
       const normalizedUrl = decodeURIComponent(url);
@@ -593,11 +631,16 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
         this.assemblyBounds = undefined;
         this.readerMaterials = this.collectMaterials(this.model);
         this.setReaderOpacity(this.readerFade.opacity);
+        this.readerAssetReady = true;
+        this.revealReaderWhenReady();
       },
       undefined,
       (error) => {
+        if (this.destroyed) return;
         console.error('Unable to load reader model asset', error);
         this.setFallbackReaderVisibility(true);
+        this.readerAssetReady = true;
+        this.revealReaderWhenReady();
       },
     );
   }
@@ -1268,53 +1311,38 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private setupPhraseAnimation(): void {
     const phraseNodes = this.phraseElements.toArray().map((item) => item.nativeElement);
     if (!phraseNodes.length) return;
+    this.phraseTimeline?.kill();
 
-    gsap.set(phraseNodes, {
-      autoAlpha: 0,
-      clipPath: 'inset(0 100% 0 0)',
-      filter: 'blur(18px)',
-      x: '-0.55em',
+    // The first phrase is already visible in CSS. Do not hide it during initialization.
+    gsap.set(phraseNodes.slice(1), {
+      autoAlpha: 0, clipPath: 'inset(0 100% 0 0)', filter: 'blur(18px)', x: '-0.55em',
     });
+    gsap.set(phraseNodes[0], {
+      autoAlpha: 1, clipPath: 'inset(0 0% 0 0)', filter: 'blur(0px)', x: 0,
+    });
+    if (phraseNodes.length === 1) return;
 
-    // Keep the rotation machinery for future multi-phrase copy, but do not
-    // start a redundant loop when the current copy contains only one phrase.
-    if (phraseNodes.length === 1) {
-      gsap.set(phraseNodes[0], {
-        autoAlpha: 1,
-        clipPath: 'inset(0 0% 0 0)',
-        filter: 'blur(0px)',
-        x: 0,
-      });
-      return;
-    }
-
-    const tl = gsap.timeline({ delay: 0.55, repeat: -1, repeatDelay: 0.12 });
+    const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.12 });
     this.phraseTimeline = tl;
-
-    phraseNodes.forEach((phraseNode) => {
+    const enter = (phraseNode: HTMLElement) => {
       tl.set(phraseNode, {
-        autoAlpha: 1,
-        clipPath: 'inset(0 100% 0 0)',
-        filter: 'blur(18px)',
-        x: '-0.55em',
-      })
+        autoAlpha: 1, clipPath: 'inset(0 100% 0 0)', filter: 'blur(18px)', x: '-0.55em',
+      }).to(phraseNode, {
+        clipPath: 'inset(0 0% 0 0)', filter: 'blur(0px)', x: 0,
+        duration: 0.72, ease: 'power3.out',
+      });
+    };
+    phraseNodes.forEach((phraseNode, index) => {
+      if (index > 0) enter(phraseNode);
+      tl.to(phraseNode, { duration: 2.85 })
         .to(phraseNode, {
-          clipPath: 'inset(0 0% 0 0)',
-          filter: 'blur(0px)',
-          x: 0,
-          duration: 0.72,
-          ease: 'power3.out',
-        })
-        .to(phraseNode, { duration: 2.85 })
-        .to(phraseNode, {
-          clipPath: 'inset(0 0 0 100%)',
-          filter: 'blur(16px)',
-          x: '0.45em',
-          duration: 0.54,
-          ease: 'power3.in',
+          clipPath: 'inset(0 0 0 100%)', filter: 'blur(16px)', x: '0.45em',
+          duration: 0.54, ease: 'power3.in',
         })
         .set(phraseNode, { autoAlpha: 0 });
     });
+    // Restore the original entrance for the first phrase on subsequent cycles.
+    enter(phraseNodes[0]);
   }
 
   private updateResultTimestamp(target: HTMLElement | null): void {
@@ -2150,7 +2178,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     material: THREE.Material,
     radius: number,
   ): THREE.Mesh {
-    const geometry = new RoundedBoxGeometry(size[0], size[1], size[2], 10, radius);
+    const geometry = this.roundedGeometries.get(size, radius);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = name;
     mesh.position.set(...position);

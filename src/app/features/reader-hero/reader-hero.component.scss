@@ -832,3 +832,12 @@
   .reader-hero.is-product-cta .marketplace-buy { min-height: 2.75rem; padding-block: 0.5em; }
   .sensor-cta h2 { max-width: 22ch; }
 }
+
+// CSS owns the pre-JavaScript state: only one phrase may be visible before GSAP starts.
+.phrase { opacity: 0; visibility: hidden; }
+.phrase:first-child { opacity: 1; visibility: visible; }
+.reader-canvas { opacity: 0; transition: opacity 350ms ease-out; }
+.reader-canvas.is-ready { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .reader-canvas { transition: none; }
+}
