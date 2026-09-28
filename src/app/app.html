@@ -2,11 +2,21 @@
   @defer (on idle) {
     <app-reader-hero />
   } @placeholder {
-    <section class="experience-preview" aria-label="BioStream reader and sensors">
-      <p>BioStream</p>
-      <h1>Explore the trax reader and sensors.</h1>
-      <p>An interactive look at sample handling, sensing, and connected results.</p>
-      <a href="https://www.bio-stream.ca/category/all-products">Explore sensors</a>
+    <section appIntroLayout class="reader-hero intro-preview" aria-label="BioStream reader and sensors">
+      <div class="reader-copy">
+        <h1 class="reader-headline">
+          <span>See results for</span>
+          <span class="phrase-stage">
+            <span class="phrase">CRP</span>
+          </span>
+          <span>with trax™.</span>
+        </h1>
+        <p class="diagnostic-phrases">
+          <span>Faster Diagnostics.</span>
+          <span>Better Decisions.</span>
+          <span>Healthier Outcomes.</span>
+        </p>
+      </div>
     </section>
   } @error {
     <section class="experience-preview">

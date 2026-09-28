@@ -1,3 +1,5 @@
+@use './reader-intro';
+@include reader-intro.opening;
 main { min-height: 100vh; }
 .experience-preview {
   box-sizing: border-box;

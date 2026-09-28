@@ -1,3 +1,4 @@
+import { applyIntroLayout } from '../../intro-layout';
 import {
   AfterViewInit,
   Component,
@@ -181,6 +182,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private pointerUpHandler = () => this.onPointerUp();
 
   ngAfterViewInit(): void {
+    applyIntroLayout(this.hero.nativeElement);
     // Let the HTML headline paint before doing WebGL and scene construction work.
     this.startupFrameId = requestAnimationFrame(() => {
       this.startupTimerId = window.setTimeout(() => {
@@ -603,19 +605,9 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       this.readerAssetReady = true;
       this.revealReaderWhenReady();
     }, 8000);
-    const manager = new THREE.LoadingManager();
-    manager.setURLModifier((url) => {
-      const normalizedUrl = decodeURIComponent(url);
-      if (normalizedUrl.endsWith('Case r12.bin') || normalizedUrl.endsWith('reader.bin')) {
-        return this.getAssetUrl('assets/models/reader/Case r12 white with logo.bin');
-      }
-
-      return url;
-    });
-
-    const loader = new GLTFLoader(manager);
+    const loader = new GLTFLoader();
     loader.load(
-      this.getAssetUrl('assets/models/reader/Case r12 white with logo.gltf'),
+      this.getAssetUrl('assets/models/reader/reader-optimized.glb'),
       (gltf) => {
         if (this.destroyed) {
           disposeObjects([gltf.scene]);
@@ -2882,21 +2874,8 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   }
 
   private updateResponsivePresentation(): void {
-    const { width, height } = this.getViewportSize();
     const stack = this.getPortraitProgress();
-    const style = this.hero.nativeElement.style;
-    style.setProperty('--layout-stack', `${stack}`);
-    this.hero.nativeElement.classList.toggle('is-portrait', this.isPortraitViewport());
-    // Keep the existing desktop typography, blending toward the portrait header.
-    const desktopHeadline = width >= 2200 ? Math.max(87.2, Math.min(width * 0.042, height * 0.08))
-      : THREE.MathUtils.clamp(Math.min(width * 0.057, height * 0.11), 40.8, 87.2);
-    const portraitHeadline = THREE.MathUtils.clamp(Math.min(width * 0.064, height * 0.053), 20, 45.6);
-    const headline = THREE.MathUtils.lerp(desktopHeadline, portraitHeadline, stack);
-    style.setProperty('--intro-headline', `${headline}px`);
-    style.setProperty('--intro-body', `${THREE.MathUtils.lerp(THREE.MathUtils.clamp(headline * 0.42, 26.24, 36.48), THREE.MathUtils.clamp(headline * 0.68, 18, 31.36), stack)}px`);
-    style.setProperty('--intro-width', `${THREE.MathUtils.lerp(Math.min(736, width * 0.5 - 16), width, stack)}px`);
-    style.setProperty('--intro-inset', `${THREE.MathUtils.lerp(THREE.MathUtils.clamp(width * 0.06, 16, 96), THREE.MathUtils.clamp(width * 0.05, 16, 32), stack)}px`);
-    style.setProperty('--intro-top', `${THREE.MathUtils.lerp(THREE.MathUtils.clamp(height * 0.11, 24, 152), THREE.MathUtils.clamp(height * 0.028, 10, 24), stack)}px`);
+    applyIntroLayout(this.hero.nativeElement);
     const sensorScale = Math.min(1, this.getWorldWidth() / THREE.MathUtils.lerp(6.2, 4.9, stack));
     this.sensorCompactScale = sensorScale;
     this.syncSensorVisibility();

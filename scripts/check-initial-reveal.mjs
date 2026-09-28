@@ -58,7 +58,7 @@ try {
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (...args) => {
       const url = String(args[0]?.url ?? args[0]);
-      if (url.includes('.gltf')) await new Promise(resolve => setTimeout(resolve, 1800));
+      if ((/\\.(gltf|glb)(?:$|[?#])/).test(url)) await new Promise(resolve => setTimeout(resolve, 1800));
       return originalFetch(...args);
     };
   `});
