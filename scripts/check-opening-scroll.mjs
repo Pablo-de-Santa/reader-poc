@@ -5,7 +5,7 @@ import path from 'node:path';
 
 // Start the development server first. Set CHROME_BIN to use another Chromium binary.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const out = path.join(root, '../opening-scroll-check');
+const out = path.join(root, '../artifacts/opening-scroll-check');
 await mkdir(out, { recursive: true });
 const port = 9235;
 const chrome = spawn(process.env.CHROME_BIN ?? 'C:/Program Files/Google/Chrome/Application/chrome.exe', [

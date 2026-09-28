@@ -1,42 +1,6 @@
 <section #hero class="reader-hero">
   <div #canvasHost class="reader-canvas" aria-hidden="true"></div>
 
-  <svg #analysisOverlay class="analysis-overlay" aria-hidden="true">
-    <path
-      #connectionLine
-      pathLength="1"
-      fill="none"
-      stroke="rgba(216, 238, 255, 0.88)"
-      stroke-width="2.4"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      vector-effect="non-scaling-stroke"
-      opacity="0"
-    />
-    <circle
-      #confirmationCircle
-      pathLength="1"
-      fill="none"
-      stroke="#74e4b3"
-      stroke-width="4.4"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      vector-effect="non-scaling-stroke"
-      opacity="0"
-    />
-    <path
-      #confirmationCheck
-      pathLength="1"
-      fill="none"
-      stroke="#74e4b3"
-      stroke-width="5.2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      vector-effect="non-scaling-stroke"
-      opacity="0"
-    />
-  </svg>
-
   <div #sampleCopy class="sample-copy" aria-hidden="true">
     <p>Reader and sensor can read signals from</p>
     <div class="sample-fluid-stage">
@@ -60,7 +24,7 @@
     </div>
 
     <div class="device-shell">
-      <div class="device-screen">
+      <div class="device-screen" [attr.data-screen-theme]="screenTheme.daylight().theme">
         <div class="screen-page" data-screen-page>
           <div class="screen-panel screen-panel-intro">
             <div class="app-welcome-card">
@@ -205,7 +169,7 @@
               <a
                 class="marketplace-buy"
                 appRipple
-                href="https://www.bio-stream.ca/product-page/traxreader-development-kit"
+                href="https://www.bio-stream.ca/category/all-products"
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -223,9 +187,7 @@
     <div class="bluetooth-signal" data-bluetooth-signal aria-hidden="true">
       <span class="bluetooth-core">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M12 3v18l6-6-6-5 6-5-6-6z" />
-          <path d="M6 7.5 18 16.5" />
-          <path d="M6 16.5 18 7.5" />
+          <path d="M7 7 17 17 12 21V3L17 7 7 17" />
         </svg>
       </span>
       <span></span>
@@ -239,20 +201,20 @@
       <p data-copy-row="3">Swap the sensor to change what the reader is looking for.</p>
       <p data-copy-row="4">The scanner stays familiar while the sensor defines the test path.</p>
       <p data-copy-row="5">A sensor can carry the chemistry, sample zone, and contact layout for its intended signal.</p>
-      <p data-copy-row="6">The reader provides the shared scan motion, optical path, and result handoff.</p>
+      <p data-copy-row="6">The reader measures electrochemical signals and connects them to the software.</p>
       <p data-copy-row="7">That separation keeps the system flexible while keeping the user experience consistent.</p>
     </div>
   </div>
 
   <div #readerCopy class="reader-copy">
     <h1 class="reader-headline">
-      <span>Portable Biomarker</span>
+      <span>See results for</span>
       <span class="phrase-stage" aria-live="polite">
         @for (phrase of phrases; track phrase) {
           <span #phrase class="phrase">{{ phrase }}</span>
         }
       </span>
-      <span>Diagnostics.</span>
+      <span>with trax™.</span>
     </h1>
     <p class="diagnostic-phrases">
       <span>Faster Diagnostics.</span>
@@ -264,10 +226,10 @@
   <div #sensorCta class="sensor-cta" aria-hidden="true">
     <p class="eyebrow">Focused health sensing</p>
     <h2>Understand more from every sample.</h2>
-    <p>Use focused sensors to check specific health signals, track changes, and keep your results close wherever you are.</p>
+    <p>Explore sensors for research and test development on the trax™ platform.</p>
     <a
       appRipple
-      href="https://www.bio-stream.ca/products"
+      href="https://www.bio-stream.ca/category/all-products"
       target="_blank"
       rel="noopener noreferrer"
     >

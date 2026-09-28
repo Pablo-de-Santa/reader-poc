@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Euler, Quaternion, Vector3 } from 'three';
 import { getSensorRock, SENSOR_ROCK_ANGLE } from './sensor-rock';
-import { separateSensors, sensorPenetration } from './sensor-contact';
+import { separateSensors, sensorPenetration } from '../physics/sensor-contact';
 
 describe('anchored sensor rocking', () => {
   it('leans in different directions smoothly within three degrees', () => {

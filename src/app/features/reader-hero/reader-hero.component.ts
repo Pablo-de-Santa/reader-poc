@@ -6,6 +6,7 @@ import {
   QueryList,
   ViewChild,
   ViewChildren,
+  inject,
 } from '@angular/core';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
@@ -14,10 +15,13 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { RippleDirective } from '../../ui/ripple.directive';
-import { separateSensors } from './sensor-contact';
-import { getSensorRock, SENSOR_ROCK_ANGLE } from './sensor-rock';
-import { advanceScrollProgress } from './scroll-progress';
-import type { SensorFallRequest, SensorFallResult } from './sensor-fall';
+import { separateSensors } from './physics/sensor-contact';
+import { getSensorRock, SENSOR_ROCK_ANGLE } from './animation/sensor-rock';
+import { advanceScrollProgress } from './animation/scroll-progress';
+import type { SensorFallRequest, SensorFallResult } from './physics/sensor-fall';
+import { disposeObjects } from './rendering/dispose-objects';
+import { RESEARCH_TARGETS } from './content/research-targets';
+import { ScreenThemeService } from './screens/screen-theme.service';
 
 gsap.registerPlugin(ScrollTrigger);
 ScrollTrigger.config({ ignoreMobileResize: true });
@@ -26,6 +30,7 @@ ScrollTrigger.config({ ignoreMobileResize: true });
   selector: 'app-reader-hero',
   standalone: true,
   imports: [RippleDirective],
+  providers: [ScreenThemeService],
   templateUrl: './reader-hero.component.html',
   styleUrl: './reader-hero.component.scss',
 })
@@ -36,31 +41,17 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   @ViewChild('sampleCopy', { static: true }) private sampleCopy!: ElementRef<HTMLElement>;
   @ViewChild('deviceStage', { static: true }) private deviceStage!: ElementRef<HTMLElement>;
   @ViewChild('sensorCta', { static: true }) private sensorCta!: ElementRef<HTMLElement>;
-  @ViewChild('analysisOverlay', { static: true }) private analysisOverlay!: ElementRef<SVGSVGElement>;
-  @ViewChild('connectionLine', { static: true }) private connectionLine!: ElementRef<SVGPathElement>;
-  @ViewChild('confirmationCircle', { static: true }) private confirmationCircle!: ElementRef<SVGCircleElement>;
-  @ViewChild('confirmationCheck', { static: true }) private confirmationCheck!: ElementRef<SVGPathElement>;
   @ViewChildren('phrase') private phraseElements!: QueryList<ElementRef<HTMLElement>>;
   @ViewChildren('sampleFluid') private sampleFluidElements!: QueryList<ElementRef<HTMLElement>>;
   @ViewChildren('instructionFluid') private instructionFluidElements!: QueryList<ElementRef<HTMLElement>>;
 
-  readonly phrases = [
-    'A1C Tests',
-    'Allergies',
-    'STIs',
-    'Cardiac',
-    'Biomarkers',
-    'Proteins',
-    'Metabolites',
-    'Chemicals',
-  ];
+  readonly phrases = RESEARCH_TARGETS;
+  readonly screenTheme = inject(ScreenThemeService);
 
   readonly sampleFluids = ['whole blood', 'serum', 'urine', 'saliva', 'water', 'most liquids'];
 
   private readonly initialModelPosition = new THREE.Vector3(0.7, -0.05, 0);
   private readonly initialModelRotation = new THREE.Euler(0.26, -0.48, 0);
-  private readonly scrollModelPosition = new THREE.Vector3(0, -0.08, 0);
-  private readonly scrollModelRotation = new THREE.Euler(0.36, -0.08, 0);
   private readonly cartridgeInsertedX = 1.6;
   private readonly cartridgePulledX = 2.48;
   private readonly cartridgeSlotY = 0.14;
@@ -71,11 +62,12 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   // Shared sample-well target for the pipette and droplet on Cartridge Base_V2.
   private readonly cartridgeSampleX = 0.60;
   private readonly cartridgeSampleZ = 0.15;
-  private readonly sampleDropPairCenterX = -0.72;
   private readonly scrollSpinBackProgress = 0.055;
   private readonly centerSensorDisplayRotation = new THREE.Euler(Math.PI / 2 - 0.4, 0.5, 0);
 
   private scene!: THREE.Scene;
+  private destroyed = false;
+  private retiredObjects: THREE.Object3D[] = [];
   private camera!: THREE.PerspectiveCamera;
   private renderer!: THREE.WebGLRenderer;
   private nebulaBackground?: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
@@ -116,13 +108,6 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private dropletGroup?: THREE.Group;
   private dropMesh?: THREE.Mesh;
   private puddleMesh?: THREE.Mesh;
-  private dnaGroup?: THREE.Group;
-  private dnaMaterials: THREE.MeshStandardMaterial[] = [];
-  private dnaReveal = { blur: 28 };
-  private dnaDisplayScale = 1;
-  private confirmation = { line: 0, circle: 0, check: 0, opacity: 0 };
-  private isDnaSpinning = false;
-  private isDnaSolid = false;
   private particles?: THREE.Points;
   private sensorConstellation?: THREE.Points;
   private sensorConstellationGeometry?: THREE.BufferGeometry;
@@ -230,6 +215,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.destroyed = true;
     cancelAnimationFrame(this.frameId);
     cancelAnimationFrame(this.openingFrameId);
     this.setOpeningScrollLocked(false);
@@ -249,6 +235,8 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.phraseTimeline?.kill();
     this.openingOrientationTimeline?.kill();
     ScrollTrigger.normalizeScroll(false);
+    disposeObjects([this.scene, this.camera, this.optimizedCartridgeTemplate, ...this.retiredObjects]);
+    this.retiredObjects = [];
     this.renderer?.dispose();
   }
 
@@ -591,9 +579,14 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     loader.load(
       this.getAssetUrl('assets/models/reader/Case r12 white with logo.gltf'),
       (gltf) => {
+        if (this.destroyed) {
+          disposeObjects([gltf.scene]);
+          return;
+        }
         if (!this.model) return;
 
         const readerAsset = this.prepareReaderAsset(gltf.scene);
+        this.retiredObjects.push(...this.readerFallbackParts);
         this.readerFallbackParts.forEach((child) => this.model?.remove(child));
         this.readerFallbackParts = [];
         this.model.add(readerAsset);
@@ -659,9 +652,14 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     loader.load(
       this.getAssetUrl('assets/models/cartridge/Cartridge Base_V2.gltf'),
       (gltf) => {
+        if (this.destroyed) {
+          disposeObjects([gltf.scene]);
+          return;
+        }
         if (!this.sensorGroup) return;
 
         const cartridgeAsset = this.prepareCartridgeAsset(gltf.scene);
+        this.retiredObjects.push(...this.sensorFallbackParts);
         this.sensorFallbackParts.forEach((child) => this.sensorGroup?.remove(child));
         this.sensorFallbackParts = [];
         this.sensorGroup.add(cartridgeAsset);
@@ -763,25 +761,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
         return first.closest('.device-copy-left') ? -1 : 1;
       },
     );
-    const dna = this.dnaGroup;
     const dustMaterial = this.particles?.material as THREE.PointsMaterial | undefined;
-
-    if (dna) {
-      gsap.set(dna.position, {
-        x: this.getDnaModelPosition().x,
-        y: this.getDnaModelPosition().y,
-        z: this.getDnaModelPosition().z,
-      });
-      gsap.set(dna.scale, { x: 1, y: 1, z: 1 });
-      gsap.set(dna.rotation, { x: 0.18, y: 0, z: 0 });
-      dna.visible = true;
-    }
-    this.dnaReveal.blur = 28;
-    this.dnaDisplayScale = 1;
-    this.confirmation.line = 0;
-    this.confirmation.circle = 0;
-    this.confirmation.check = 0;
-    this.confirmation.opacity = 0;
     this.sensorStarMotion.progress = 0;
     this.sensorStarMotion.fall = 0;
     this.sensorMessageMotion.progress = 0;
@@ -792,9 +772,6 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.sensorGroup.visible = false;
     gsap.set(this.topRotationRig, { visible: true });
     gsap.set(this.model, { visible: true });
-    this.isDnaSpinning = false;
-    this.isDnaSolid = false;
-    this.setDnaOpacity(0);
     gsap.set(deviceStage, {
       autoAlpha: 0,
       filter: 'blur(0px)',
@@ -809,9 +786,10 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       '--keyboard-o': 0,
       '--home-o': 0,
       '--screen-r': '1.25rem',
-      '--screen-bg': '#eee8ef',
+      '--screen-bg-opacity': 1,
       '--device-shell-bg': 'rgba(38, 42, 52, 0.96)',
       '--device-frame-border': 'rgba(38, 42, 52, 0.96)',
+      '--frame-edge-opacity': 1,
       '--device-shadow-o': 0.42,
       '--device-inner-shadow-o': 0.18,
     });
@@ -828,7 +806,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       progressCheck.setAttribute('stroke-dashoffset', `${progressCheckLength}`);
     }
     gsap.set(progressCheck, { autoAlpha: 0 });
-    gsap.set(bluetoothSignal, { autoAlpha: 0, scale: 0.84 });
+    gsap.set(bluetoothSignal, { autoAlpha: 0 });
     gsap.set(bluetoothRings, { opacity: 0, scale: 0.42 });
     gsap.set(sensorCta, {
       autoAlpha: 0,
@@ -868,7 +846,6 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     }
     this.setMaterialsOpacity(this.centerSensorMaterials, 0);
     this.setMaterialsOpacity(this.sensorFieldMaterials, 0);
-    this.updateAnalysisOverlay();
 
     tl.fromTo(this.topRotationRig.position,
       this.vectorTweenDynamic(() => this.getInitialModelPosition(), 0),
@@ -931,7 +908,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           '--keyboard-o': 0,
           '--home-o': 0,
           '--screen-r': '1.25rem',
-          '--screen-bg': '#eee8ef',
+          '--screen-bg-opacity': 1,
           '--device-shell-bg': 'rgba(38, 42, 52, 0.96)',
           duration: 0.4,
           ease: 'power2.out',
@@ -939,18 +916,18 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
         0.62,
       )
       .to(screenPage, { autoAlpha: 0.96, filter: 'blur(0px)', duration: 0.34, ease: 'power2.out' }, 0.74)
-      .to(bluetoothSignal, { autoAlpha: 1, scale: 1, duration: 0.18, ease: 'power2.out' }, 0.98)
+      .to(bluetoothSignal, { autoAlpha: 1, duration: 0.18, ease: 'power2.out' }, 0.98)
       .to(
         bluetoothRings,
         { opacity: 0.8, scale: 1.2, duration: 0.52, stagger: 0.16, ease: 'power2.out' },
         1.02,
       )
       .to(bluetoothRings, { opacity: 0, duration: 0.2, stagger: 0.16, ease: 'power2.in' }, 1.42)
-      .to(bluetoothSignal, { autoAlpha: 0, scale: 1.12, duration: 0.18, ease: 'power2.in' }, 1.64)
+      .to(bluetoothSignal, { autoAlpha: 0, duration: 0.18, ease: 'power2.in' }, 1.64)
       .set(this.sensorGroup, { visible: true }, 1.68)
       .set(this.sensorGroup.position, { x: () => this.getSensorEntryX(), y: this.cartridgeSlotY, z: 0 }, 1.68)
       .to(this.sensorGroup.position, { x: this.cartridgeInsertedX, y: this.cartridgeSlotY, z: 0, duration: 1.12, ease: 'power1.inOut' }, 1.68)
-      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getSampleDropModelPosition(this.cartridgeInsertedX), 1.12), 1.68)
+      .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getSampleDropModelPosition(), 1.12), 1.68)
       .to(this.sensorGroup.rotation, { x: 0, y: 0, z: 0, duration: 0.28 }, 1.68)
       .to(screenPanels[0] ?? {}, { autoAlpha: 0, filter: 'blur(12px)', duration: 0.2, ease: 'power2.in' }, 2.92)
       .to(screenPanels[1] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', duration: 0.3, ease: 'power2.out' }, 3.02)
@@ -1006,7 +983,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           '--device-shell-bg': 'rgba(241, 236, 224, 0)',
           '--device-frame-border': 'rgba(241, 236, 224, 0)',
           '--frame-edge-opacity': 0,
-          '--screen-bg': 'rgba(238, 232, 239, 0)',
+          '--screen-bg-opacity': 0,
           '--keyboard-o': 0,
           '--stand-o': 0,
           '--device-shadow-o': 0,
@@ -1067,7 +1044,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           '--keyboard-o': 0,
           '--home-o': 0,
           '--screen-r': '1.25rem',
-          '--screen-bg': '#eee8ef',
+          '--screen-bg-opacity': 1,
           '--device-shell-bg': 'rgba(38, 42, 52, 0.96)',
           '--device-frame-border': 'rgba(38, 42, 52, 0.96)',
           '--device-shadow-o': 0.42,
@@ -1089,7 +1066,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           '--keyboard-o': 0,
           '--home-o': 0,
           '--screen-r': '1.25rem',
-          '--screen-bg': '#eee8ef',
+          '--screen-bg-opacity': 1,
           '--device-shell-bg': 'rgba(38, 42, 52, 0.96)',
           '--device-frame-border': 'rgba(38, 42, 52, 0.96)',
           '--device-shadow-o': 0.42,
@@ -1122,8 +1099,6 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
         },
         3.62,
       )
-      .to(dna?.position ?? {}, this.vectorTweenDynamic(() => this.getDeviceDnaPosition('tablet'), 0.7), 3.62)
-      .to(this, { dnaDisplayScale: () => this.getDeviceDnaScale('tablet'), duration: 0.7, ease: 'power2.inOut' }, 3.62)
       .to(deviceCopy, { y: '-10vh', duration: 3.6, ease: 'none' }, 3.18)
       .to(
         deviceStage,
@@ -1137,7 +1112,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
           '--keyboard-o': () => this.isPortraitViewport() ? 0 : 1,
           '--home-o': 0,
           '--screen-r': '0.12rem',
-          '--screen-bg': '#eee8ef',
+          '--screen-bg-opacity': 1,
           '--device-shell-bg': 'rgba(38, 42, 52, 0.96)',
           '--device-frame-border': 'rgba(38, 42, 52, 0.96)',
           '--device-shadow-o': 0.42,
@@ -1170,8 +1145,6 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
         },
         7.55,
       )
-      .to(dna?.position ?? {}, this.vectorTweenDynamic(() => this.getDeviceDnaPosition('laptop'), 0.7), 7.55)
-      .to(this, { dnaDisplayScale: () => this.getDeviceDnaScale('laptop'), duration: 0.7, ease: 'power2.inOut' }, 7.55)
       .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getFinalDeviceModelPosition(), 0.72), 8.58)
       .to(
         this.topRotationRig.scale,
@@ -1469,56 +1442,6 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     this.dropletGroup.add(puddle);
   }
 
-  private createDnaModel(): void {
-    const group = new THREE.Group();
-    group.name = 'analysis_dna_model';
-    group.position.copy(this.getDnaModelPosition());
-    group.rotation.set(0.18, 0, 0);
-    group.visible = true;
-
-    const strandA = this.createMaterial('#61d7ff', 0.25, 0.12);
-    const strandB = this.createMaterial('#9a6cff', 0.28, 0.12);
-    const rungMaterial = this.createMaterial('#d7fff1', 0.34, 0.08);
-    const nodeMaterial = this.createMaterial('#f7efe2', 0.42, 0.05);
-    this.dnaMaterials = [strandA, strandB, rungMaterial, nodeMaterial];
-    this.setDnaOpacity(0);
-
-    const height = 2.55;
-    const radius = 0.36;
-    const turns = 2.15;
-    const segments = 36;
-    const pointsA: THREE.Vector3[] = [];
-    const pointsB: THREE.Vector3[] = [];
-
-    for (let i = 0; i <= segments; i++) {
-      const t = i / segments;
-      const angle = t * Math.PI * 2 * turns;
-      const y = -height / 2 + t * height;
-      pointsA.push(new THREE.Vector3(Math.cos(angle) * radius, y, Math.sin(angle) * radius));
-      pointsB.push(new THREE.Vector3(Math.cos(angle + Math.PI) * radius, y, Math.sin(angle + Math.PI) * radius));
-    }
-
-    const strandCurveA = new THREE.CatmullRomCurve3(pointsA);
-    const strandCurveB = new THREE.CatmullRomCurve3(pointsB);
-    group.add(new THREE.Mesh(new THREE.TubeGeometry(strandCurveA, 110, 0.026, 16, false), strandA));
-    group.add(new THREE.Mesh(new THREE.TubeGeometry(strandCurveB, 110, 0.026, 16, false), strandB));
-
-    for (let i = 0; i <= segments; i += 3) {
-      const nodeA = new THREE.Mesh(new THREE.SphereGeometry(0.06, 18, 12), i % 2 === 0 ? strandA : nodeMaterial);
-      nodeA.position.copy(pointsA[i]);
-      group.add(nodeA);
-
-      const nodeB = new THREE.Mesh(new THREE.SphereGeometry(0.06, 18, 12), i % 2 === 0 ? strandB : nodeMaterial);
-      nodeB.position.copy(pointsB[i]);
-      group.add(nodeB);
-
-      group.add(this.cylinderBetween(pointsA[i], pointsB[i], 0.012, rungMaterial));
-    }
-
-    this.dnaGroup = group;
-    this.scene.add(group);
-  }
-
   private createSensorConstellationScene(): void {
     const starCount = this.getViewportSize().width < 760 ? 2600 : 5200;
     const startPositions = new Float32Array(starCount * 3);
@@ -1607,7 +1530,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       if (index === centerLayoutIndex) return;
 
       const sensor = this.createStandaloneSensorModel(layout.scale);
-      const gatherStartPosition = this.createSensorGatherStartPosition(layout.position, index);
+      const gatherStartPosition = this.createSensorGatherStartPosition(layout.position);
       const gatherStartRotation = new THREE.Euler(
         layout.rotation.x + (Math.random() - 0.5) * 0.5,
         layout.rotation.y + (Math.random() - 0.5) * 0.42,
@@ -1864,7 +1787,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     return layout;
   }
 
-  private createSensorGatherStartPosition(fieldPosition: THREE.Vector3, index: number): THREE.Vector3 {
+  private createSensorGatherStartPosition(fieldPosition: THREE.Vector3): THREE.Vector3 {
     const compact = this.getViewportSize().width < 760;
     const laneJitter = compact ? 0.05 : 0.07;
     const verticalJitter = compact ? 0.08 : 0.1;
@@ -2131,8 +2054,9 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     sensors.forEach((sensor) => {
       const opacity = this.collectMaterials(sensor)[0]?.opacity ?? 0;
       const replacement = this.createOptimizedCartridgeClone();
+      this.retiredObjects.push(...sensor.children);
       sensor.clear();
-      replacement.children.forEach((child) => sensor.add(child));
+      sensor.add(...replacement.children);
       const materials = this.collectMaterials(sensor);
       this.setMaterialsOpacity(materials, opacity);
 
@@ -2203,64 +2127,6 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       material.depthTest = true;
       material.needsUpdate = true;
     });
-  }
-
-  private lockSensorFieldOpacity(): void {
-    this.sensorFieldMaterials.forEach((material) => {
-      material.transparent = false;
-      material.opacity = 1;
-      material.depthWrite = true;
-      material.depthTest = true;
-      material.needsUpdate = true;
-    });
-  }
-
-  private setDnaOpacity(opacity: number): void {
-    this.dnaMaterials.forEach((material) => {
-      material.transparent = true;
-      material.opacity = opacity;
-      material.depthWrite = false;
-      material.needsUpdate = true;
-    });
-    this.isDnaSolid = false;
-  }
-
-  private solidifyDnaMaterials(): void {
-    if (this.isDnaSolid) return;
-
-    this.dnaMaterials.forEach((material) => {
-      material.opacity = 1;
-      material.transparent = false;
-      material.depthWrite = true;
-      material.needsUpdate = true;
-    });
-    this.isDnaSolid = true;
-  }
-
-  private softenDnaMaterials(): void {
-    if (!this.isDnaSolid) return;
-
-    this.dnaMaterials.forEach((material) => {
-      material.transparent = true;
-      material.depthWrite = false;
-      material.needsUpdate = true;
-    });
-    this.isDnaSolid = false;
-  }
-
-  private cylinderBetween(
-    start: THREE.Vector3,
-    end: THREE.Vector3,
-    radius: number,
-    material: THREE.Material,
-  ): THREE.Mesh {
-    const direction = new THREE.Vector3().subVectors(end, start);
-    const length = direction.length();
-    const geometry = new THREE.CylinderGeometry(radius, radius, length, 16);
-    const cylinder = new THREE.Mesh(geometry, material);
-    cylinder.position.copy(start).add(end).multiplyScalar(0.5);
-    cylinder.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
-    return cylinder;
   }
 
   private createDropletGeometry(): THREE.BufferGeometry {
@@ -2367,29 +2233,9 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       this.topRotationRig.rotation.y = this.shortestAngle(this.topRotationRig.rotation.y);
     }
 
-    if (this.dnaGroup) {
-      const revealSoftness = this.dnaReveal.blur;
-      const revealBlurScale = 1 + revealSoftness * 0.0025;
-      this.dnaGroup.scale.setScalar(revealBlurScale * this.dnaDisplayScale);
-      this.dnaMaterials.forEach((material) => {
-        material.roughness = THREE.MathUtils.clamp(0.22 + revealSoftness * 0.025, 0.22, 0.92);
-      });
-    }
-
-    if (this.dnaGroup && this.dnaMaterials.every((material) => material.opacity >= 0.98)) {
-      this.solidifyDnaMaterials();
-    } else {
-      this.softenDnaMaterials();
-    }
-
-    if (this.dnaGroup && this.isDnaSpinning && this.dnaMaterials.every((material) => material.opacity >= 0.98)) {
-      this.dnaGroup.rotation.y += 0.012;
-    }
-
     this.syncSensorVisibility();
     this.applySensorRock();
     this.resolveSensorContacts();
-    this.updateAnalysisOverlay();
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -2541,7 +2387,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private prepareSensorFall(revision: number): void {
     if (!this.optimizedCartridgeTemplate || !this.centerSensor || !this.sensorCollider) return;
     if (!this.sensorFallWorker) {
-      this.sensorFallWorker = new Worker(new URL('./sensor-fall.worker', import.meta.url), { type: 'module' });
+      this.sensorFallWorker = new Worker(new URL('./physics/sensor-fall.worker', import.meta.url), { type: 'module' });
       this.sensorFallWorker.onmessage = ({ data }: MessageEvent<SensorFallResult>) => {
         if (data.revision === this.sensorFallRevision) this.sensorFallRecording = data;
       };
@@ -2709,109 +2555,6 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       material.needsUpdate = true;
     });
   }
-
-  private updateAnalysisOverlay(): void {
-    if (!this.topRotationRig || !this.dnaGroup || !this.camera || !this.renderer) return;
-
-    const overlay = this.analysisOverlay.nativeElement;
-    const connectionLine = this.connectionLine.nativeElement;
-    const circle = this.confirmationCircle.nativeElement;
-    const check = this.confirmationCheck.nativeElement;
-    const viewport = this.getViewportSize();
-    const opacity = this.confirmation.opacity;
-
-    overlay.setAttribute('viewBox', `0 0 ${viewport.width} ${viewport.height}`);
-
-    if (opacity <= 0.001) {
-      connectionLine.style.opacity = '0';
-      circle.style.opacity = '0';
-      check.style.opacity = '0';
-      return;
-    }
-
-    this.scene.updateMatrixWorld(true);
-
-    const readerWorld = new THREE.Vector3();
-    const dnaWorld = new THREE.Vector3();
-    this.topRotationRig.getWorldPosition(readerWorld);
-    this.dnaGroup.getWorldPosition(dnaWorld);
-
-    const readerPoint = this.projectWorldToScreen(readerWorld);
-    const dnaPoint = this.projectWorldToScreen(dnaWorld);
-    const direction = dnaPoint.x >= readerPoint.x ? 1 : -1;
-    const gap = Math.max(1, Math.abs(dnaPoint.x - readerPoint.x));
-    const viewportBase = Math.min(viewport.width, viewport.height);
-    const lineY = readerPoint.y + (dnaPoint.y - readerPoint.y) * 0.5;
-    const readerClearance = THREE.MathUtils.clamp(viewportBase * 0.16, 70, 180);
-    const dnaClearance = THREE.MathUtils.clamp(viewportBase * 0.15, 66, 170);
-    const rawStartX = readerPoint.x + direction * readerClearance;
-    const rawEndX = dnaPoint.x - direction * dnaClearance;
-    const hasUsableGap = direction * (rawEndX - rawStartX) > 28;
-    const fallbackHalfLength = Math.min(gap * 0.22, viewportBase * 0.1);
-    const fallbackCenter = readerPoint.x + (dnaPoint.x - readerPoint.x) * 0.5;
-    const start = {
-      x: hasUsableGap ? rawStartX : fallbackCenter - direction * fallbackHalfLength,
-      y: lineY,
-    };
-    const end = {
-      x: hasUsableGap ? rawEndX : fallbackCenter + direction * fallbackHalfLength,
-      y: lineY,
-    };
-    const mid = {
-      x: start.x + (end.x - start.x) * 0.5,
-      y: lineY,
-    };
-    const lineLength = Math.abs(end.x - start.x);
-    const responsiveRadius = THREE.MathUtils.clamp(viewportBase * 0.052, 26, 52);
-    const checkRadius = Math.min(responsiveRadius, lineLength * 0.24);
-    const connectionStroke = THREE.MathUtils.clamp(viewportBase * 0.0036, 1.6, 2.4);
-    const circleStroke = THREE.MathUtils.clamp(viewportBase * 0.0062, 2.4, 4.4);
-    const checkStroke = THREE.MathUtils.clamp(viewportBase * 0.0072, 2.8, 5.2);
-    const checkCenter = {
-      x: mid.x,
-      y: mid.y - checkRadius * 1.8,
-    };
-
-    connectionLine.setAttribute('d', `M ${start.x.toFixed(1)} ${start.y.toFixed(1)} L ${end.x.toFixed(1)} ${end.y.toFixed(1)}`);
-    connectionLine.setAttribute('stroke-width', connectionStroke.toFixed(2));
-    connectionLine.style.opacity = `${opacity}`;
-    connectionLine.style.strokeDasharray = '1';
-    connectionLine.style.strokeDashoffset = `${1 - this.confirmation.line}`;
-
-    circle.setAttribute('cx', checkCenter.x.toFixed(1));
-    circle.setAttribute('cy', checkCenter.y.toFixed(1));
-    circle.setAttribute('r', checkRadius.toFixed(1));
-    circle.setAttribute('stroke-width', circleStroke.toFixed(2));
-    circle.style.opacity = `${opacity}`;
-    circle.style.strokeDasharray = '1';
-    circle.style.strokeDashoffset = `${1 - this.confirmation.circle}`;
-
-    const checkStartX = checkCenter.x - checkRadius * 0.38;
-    const checkStartY = checkCenter.y - checkRadius * 0.02;
-    const checkMidX = checkCenter.x - checkRadius * 0.08;
-    const checkMidY = checkCenter.y + checkRadius * 0.28;
-    const checkEndX = checkCenter.x + checkRadius * 0.42;
-    const checkEndY = checkCenter.y - checkRadius * 0.32;
-    check.setAttribute(
-      'd',
-      `M ${checkStartX.toFixed(1)} ${checkStartY.toFixed(1)} L ${checkMidX.toFixed(1)} ${checkMidY.toFixed(1)} L ${checkEndX.toFixed(1)} ${checkEndY.toFixed(1)}`,
-    );
-    check.setAttribute('stroke-width', checkStroke.toFixed(2));
-    check.style.opacity = `${opacity}`;
-    check.style.strokeDasharray = '1';
-    check.style.strokeDashoffset = `${1 - this.confirmation.check}`;
-  }
-
-  private projectWorldToScreen(point: THREE.Vector3): { x: number; y: number } {
-    const viewport = this.getViewportSize();
-    const projected = point.clone().project(this.camera);
-
-    return {
-      x: (projected.x * 0.5 + 0.5) * viewport.width,
-      y: (-projected.y * 0.5 + 0.5) * viewport.height,
-    };
-  }
-
 
   private onPointerDown(event: PointerEvent): void {
     if (this.openingScrollLocked) return;
@@ -3059,9 +2802,6 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     if (this.model) {
       this.model.rotation.copy(this.getInitialModelRotation());
     }
-    if (this.dnaGroup) {
-      this.dnaGroup.position.copy(this.getDnaModelPosition());
-    }
     this.scrollTimeline?.invalidate().progress(progress, true);
     this.syncProductCtaLayer(progress);
     window.clearTimeout(this.resizeRefreshId);
@@ -3223,11 +2963,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     return new THREE.Vector3(0, THREE.MathUtils.lerp(-1.4, -1.52, portraitProgress), 0);
   }
 
-  private getSampleDropModelPosition(cartridgeX: number): THREE.Vector3 {
-    return this.getSensorSequenceModelPosition();
-  }
-
-  private getScrollModelPosition(): THREE.Vector3 {
+  private getSampleDropModelPosition(): THREE.Vector3 {
     return this.getSensorSequenceModelPosition();
   }
 
@@ -3246,18 +2982,6 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
   private getCenteredInsertedModelPosition(): THREE.Vector3 {
     return this.getSensorSequenceModelPosition();
-  }
-
-  private getPostSensorModelPosition(): THREE.Vector3 {
-    return this.isMobileLayout() ? this.getInitialModelPosition() : this.getDeviceModelPosition('phone');
-  }
-
-  private getPostSensorModelRotation(): THREE.Euler {
-    return this.isMobileLayout() ? this.getInitialModelRotation() : this.getDeviceModelRotation('phone');
-  }
-
-  private getPostSensorModelScale(): number {
-    return this.isMobileLayout() ? this.getInitialModelScale() : this.getDeviceModelScale('phone');
   }
 
   private getInitialModelRotation(): THREE.Euler {
@@ -3286,10 +3010,6 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     );
   }
 
-  private getScrollModelRotation(): THREE.Euler {
-    return this.getSensorSequenceModelRotation();
-  }
-
   private getPortraitProgress(): number {
     const { width, height } = this.getViewportSize();
     return Math.max(
@@ -3301,29 +3021,6 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private isMobileLayout(): boolean {
     const viewport = this.getViewportSize();
     return viewport.width <= 900 || viewport.height > viewport.width;
-  }
-
-  private getAnalysisModelPosition(): THREE.Vector3 {
-    const width = this.getViewportSize().width;
-    if (width < 760) return new THREE.Vector3(-0.74, -0.1, 0);
-    if (width < 1100) return new THREE.Vector3(-0.72, -0.08, 0);
-    if (width < 1400) return new THREE.Vector3(-0.78, -0.06, 0);
-    return new THREE.Vector3(-0.9, -0.04, 0);
-  }
-
-  private getAnalysisModelScale(): number {
-    const width = this.getViewportSize().width;
-    if (width < 760) return 0.52;
-    if (width < 1100) return 0.56;
-    return 0.62;
-  }
-
-  private getDnaModelPosition(): THREE.Vector3 {
-    const width = this.getViewportSize().width;
-    if (width < 760) return new THREE.Vector3(0.72, 0, 0);
-    if (width < 1100) return new THREE.Vector3(0.88, 0, 0);
-    if (width < 1400) return new THREE.Vector3(0.96, 0, 0);
-    return new THREE.Vector3(1.08, 0, 0);
   }
 
   private getDeviceFrame(kind: 'desktop' | 'laptop' | 'tablet' | 'phone'): { width: string; height: string } {
@@ -3456,19 +3153,6 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     return Math.min(0.6, this.getWorldWidth() * 0.76 / size.x, this.getWorldWidth() / this.camera.aspect * 0.36 / size.y);
   }
 
-  private getDeviceDnaPosition(kind: 'desktop' | 'laptop' | 'tablet' | 'phone'): THREE.Vector3 {
-    const width = this.getViewportSize().width;
-    const compactOffset = width < 760 ? 0.06 : 0;
-    const positions = {
-      desktop: new THREE.Vector3(0.88 + compactOffset, 0, 0),
-      laptop: new THREE.Vector3(0.64 + compactOffset, 0, 0),
-      tablet: new THREE.Vector3(0.38 + compactOffset, 0, 0),
-      phone: new THREE.Vector3(0.2 + compactOffset, 0, 0),
-    };
-
-    return positions[kind];
-  }
-
   private getDeviceModelScale(kind: 'desktop' | 'laptop' | 'tablet' | 'phone'): number {
     if (kind === 'laptop') {
       const frame = this.getDeviceFrame(kind);
@@ -3486,18 +3170,5 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
     };
 
     return Math.min(scales[kind], this.getWorldWidth() * 0.82 / 6);
-  }
-
-  private getDeviceDnaScale(kind: 'desktop' | 'laptop' | 'tablet' | 'phone'): number {
-    const compact = this.getViewportSize().width < 760;
-    const base = compact ? 0.9 : 1;
-    const scales = {
-      desktop: 0.76 * base,
-      laptop: 0.62 * base,
-      tablet: 0.48 * base,
-      phone: 0.36 * base,
-    };
-
-    return scales[kind];
   }
 }
