@@ -8,11 +8,11 @@ import path from 'node:path';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(path.join(root, 'package.json'));
 const ts = require('typescript');
-const source = await readFile(path.join(root, 'src/app/features/reader-hero/sensor-contact.ts'), 'utf8');
+const source = await readFile(path.join(root, 'src/app/features/reader-hero/physics/sensor-contact.ts'), 'utf8');
 const contactCode = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 }).outputText.replace(/^import[^\n]+\n/gm, '').replace(/\bexport\s+/g, '');
-const out = path.join(root, '../sensor-smoothness');
+const out = path.join(root, '../artifacts/sensor-smoothness');
 await mkdir(out, { recursive: true });
 const port = 9234;
 const chrome = spawn(process.env.CHROME_BIN ?? 'C:/Program Files/Google/Chrome/Application/chrome.exe', [
