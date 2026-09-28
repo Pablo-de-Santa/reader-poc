@@ -35,8 +35,8 @@ describe('App', () => {
   it('shows useful content before loading the WebGL experience', () => {
     const fixture = TestBed.createComponent(appType);
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.experience-preview h1')).not.toBeNull();
-    expect(fixture.nativeElement.querySelector('.experience-preview a')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.intro-preview h1').textContent).toContain('See results for');
+    expect(fixture.nativeElement.querySelectorAll('.intro-preview .phrase')).toHaveLength(1);
     expect(fixture.nativeElement.querySelector('app-reader-hero')).toBeNull();
   });
 

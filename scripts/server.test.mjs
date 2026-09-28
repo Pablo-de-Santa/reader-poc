@@ -14,6 +14,7 @@ test('serves compressed assets, real robots rules, and safe SPA fallbacks', asyn
     await writeFile(join(root, 'index.html'), '<h1>Reader</h1>');
     await writeFile(join(root, 'robots.txt'), 'User-agent: *\nAllow: /\n');
     await writeFile(join(root, 'main-ABCDEFGH.js'), 'console.log("reader");');
+    await writeFile(join(root, 'reader.glb'), Buffer.from([103,108,84,70,0,1,2,3]));
     server = createStaticServer(root).listen(0, '127.0.0.1');
     await once(server, 'listening');
     const base = `http://127.0.0.1:${server.address().port}`;
@@ -24,6 +25,9 @@ test('serves compressed assets, real robots rules, and safe SPA fallbacks', asyn
     assert.equal(script.headers.get('content-encoding'), 'gzip');
     assert.match(script.headers.get('cache-control'), /immutable/);
     assert.equal(await script.text(), 'console.log("reader");');
+    const model = await fetch(base + '/reader.glb', { headers: { 'Accept-Encoding': 'gzip' } });
+    assert.equal(model.headers.get('content-encoding'), 'gzip');
+    assert.deepEqual(Buffer.from(await model.arrayBuffer()), Buffer.from([103,108,84,70,0,1,2,3]));
     const plain = await fetch(base + '/main-ABCDEFGH.js', { headers: { 'Accept-Encoding': 'gzip;q=0' } });
     assert.equal(plain.headers.get('content-encoding'), null);
     assert.equal((await fetch(base + '/missing.js')).status, 404);

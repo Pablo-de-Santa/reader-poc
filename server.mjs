@@ -12,7 +12,7 @@ const contentTypes = {
   '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp',
   '.bin': 'application/octet-stream', '.gltf': 'model/gltf+json', '.glb': 'model/gltf-binary',
 };
-const compressible = new Set(['.html', '.js', '.css', '.json', '.txt', '.svg', '.gltf']);
+const compressible = new Set(['.html', '.js', '.css', '.json', '.txt', '.svg', '.gltf', '.glb', '.bin']);
 const stagingHosts = new Set(['gsap.test.bio-stream.ca', 'gsap.dev.bio-stream.ca']);
 
 export function createStaticServer(root) {
