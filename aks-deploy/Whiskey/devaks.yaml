@@ -80,7 +80,7 @@ spec:
   tls:
     - secretName: star-bio-stream-ca-2025
   rules:
-    - host: gsap.dev.bio-stream.ca
+    - host: tech.dev.bio-stream.ca
       http:
         paths:
           - path: /
