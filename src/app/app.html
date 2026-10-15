@@ -4,18 +4,27 @@
   } @placeholder {
     <section appIntroLayout class="reader-hero intro-preview" aria-label="BioStream reader and sensors">
       <div class="reader-copy">
-        <h1 class="reader-headline">
-          <span>See results for</span>
-          <span class="phrase-stage">
-            <span class="phrase">CRP</span>
-          </span>
-          <span>with trax™.</span>
-        </h1>
-        <p class="diagnostic-phrases">
-          <span>Faster Diagnostics.</span>
-          <span>Better Decisions.</span>
-          <span>Healthier Outcomes.</span>
-        </p>
+        @if (demo) {
+          <h1 class="reader-headline demo-headline">
+            <span>Faster Diagnostics.</span>
+            <span>Better Decisions.</span>
+            <span>Healthier Lives.</span>
+          </h1>
+          <p class="diagnostic-phrases demo-description">Turning biomarker science into immediate test results for everyday life.</p>
+        } @else {
+          <h1 class="reader-headline">
+            <span>See results for</span>
+            <span class="phrase-stage">
+              <span class="phrase">CRP</span>
+            </span>
+            <span>with trax™.</span>
+          </h1>
+          <p class="diagnostic-phrases">
+            <span>Faster Diagnostics.</span>
+            <span>Better Decisions.</span>
+            <span>Healthier Outcomes.</span>
+          </p>
+        }
       </div>
     </section>
   } @error {

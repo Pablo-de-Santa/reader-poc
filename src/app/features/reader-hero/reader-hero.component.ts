@@ -1,3 +1,4 @@
+import { DemoPlayback, isDemoPage } from '../../demo-playback';
 import { applyIntroLayout } from '../../intro-layout';
 import {
   AfterViewInit,
@@ -46,6 +47,8 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   @ViewChildren('sampleFluid') private sampleFluidElements!: QueryList<ElementRef<HTMLElement>>;
   @ViewChildren('instructionFluid') private instructionFluidElements!: QueryList<ElementRef<HTMLElement>>;
 
+  readonly demo = isDemoPage();
+  private demoPlayback?: DemoPlayback;
   readonly phrases = RESEARCH_TARGETS;
   readonly screenTheme = inject(ScreenThemeService);
 
@@ -196,7 +199,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       window.history.scrollRestoration = 'manual';
     }
     this.resetScrollPosition();
-    ScrollTrigger.normalizeScroll(true);
+    ScrollTrigger.normalizeScroll(!this.demo);
     this.setOpeningScrollLocked(true);
 
     this.initScene();
@@ -230,10 +233,24 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       this.revealReaderWhenReady();
     });
     this.initialScrollResetId = window.setTimeout(() => this.resetScrollPosition(), 90);
+    if (this.demo) this.demoPlayback = new DemoPlayback({
+      ready: () => this.readerRevealed && !this.openingScrollLocked,
+      time: () => this.scrollProgressCurrent * (this.scrollTimeline?.duration() ?? 1),
+      scrollAt: time => {
+        const trigger = this.scrollTriggerInstance!;
+        return trigger.start + (trigger.end - trigger.start) * time / this.scrollTimeline!.duration();
+      },
+      reset: () => { this.resetScrollPosition(); this.syncInteractionMode(); },
+      release: () => {
+        this.openingOrientationTimeline?.progress(1);
+        this.setOpeningScrollLocked(false);
+      },
+    });
   }
 
   ngOnDestroy(): void {
     this.destroyed = true;
+    this.demoPlayback?.destroy();
     cancelAnimationFrame(this.startupFrameId);
     window.clearTimeout(this.startupTimerId);
     window.clearTimeout(this.readerLoadTimeoutId);
@@ -351,6 +368,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   }
 
   private setOpeningScrollLocked(locked: boolean): void {
+    if (this.demo) locked = false;
     if (this.openingScrollLocked === locked) return;
     this.openingScrollLocked = locked;
     const normalizer = ScrollTrigger.normalizeScroll();
@@ -1030,8 +1048,8 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
       )
       .call(() => {
         this.hero.nativeElement.classList.toggle('is-product-cta', (tl.scrollTrigger?.direction ?? 1) > 0);
-      }, undefined, 8.9)
-      .to(screenPanels[5] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', duration: 0.34, ease: 'power2.out' }, 8.96)
+      }, undefined, this.demo ? 9.65 : 8.9)
+      .to(screenPanels[5] ?? {}, { autoAlpha: 1, filter: 'blur(0px)', duration: 0.34, ease: 'power2.out' }, this.demo ? 9.71 : 8.96)
       .to(this.topRotationRig.position, this.vectorTweenDynamic(() => this.getCenteredInsertedModelPosition(), 0.58), 3.56)
       .to(this.topRotationRig.rotation, { x: 0, y: 0, z: 0, duration: 0.58, ease: 'power2.inOut' }, 3.56)
       .to(
@@ -2908,7 +2926,7 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
   private syncProductCtaLayer(progress: number): void {
     const duration = this.scrollTimeline?.duration() ?? 1;
     const timelineTime = progress * duration;
-    this.hero.nativeElement.classList.toggle('is-product-cta', timelineTime >= 8.9 && timelineTime <= 10.72);
+    this.hero.nativeElement.classList.toggle('is-product-cta', timelineTime >= (this.demo ? 9.65 : 8.9) && timelineTime <= 10.72);
   }
 
   private getScaledFrameSize(aspect: number, maxWidthRatio: number, maxHeightRatio: number): { width: number; height: number } {
@@ -3157,6 +3175,9 @@ export class ReaderHeroComponent implements AfterViewInit, OnDestroy {
 
   private getFinalDeviceModelScale(): number {
     const size = this.getAssemblyBounds().getSize(new THREE.Vector3());
+    if (this.demo) {
+      return Math.min(0.75, this.getWorldWidth() * 0.88 / size.x, this.getWorldWidth() / this.camera.aspect * 0.45 / size.y);
+    }
     return Math.min(0.6, this.getWorldWidth() * 0.76 / size.x, this.getWorldWidth() / this.camera.aspect * 0.36 / size.y);
   }
 

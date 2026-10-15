@@ -1,3 +1,4 @@
+import { isDemoPage } from './demo-playback';
 import { IntroLayoutDirective } from './intro-layout.directive';
 import { Component } from '@angular/core';
 import { ReaderHeroComponent } from './features/reader-hero/reader-hero.component';
@@ -8,4 +9,4 @@ import { ReaderHeroComponent } from './features/reader-hero/reader-hero.componen
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
-export class App {}
+export class App { readonly demo = isDemoPage(); }

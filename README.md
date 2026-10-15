@@ -17,6 +17,14 @@ Open:
 http://localhost:4200/
 ```
 
+Open `/demo` for automatic presentation playback with the static three-line headline.
+Playback waits 3.5 seconds at the top, slows through the sample-liquid instructions,
+and fades to black after the laptop transitions back to the reader, before purchase copy.
+Scrolling or interacting takes control immediately; 20 seconds without input restarts
+the presentation from the top under the same blackout. The regular `/` experience stays unchanged.
+With the preview running, `node scripts/check-demo.mjs` checks desktop and mobile playback,
+manual takeover, and the inactivity reset in Chrome.
+
 ## Project Layout
 
 - `src/app/features/reader-hero/` — hero component, template, and styles.
@@ -70,7 +78,7 @@ dist/reader-poc/browser
 Live preview:
 
 ```txt
-https://gsap.bio-stream.ca/
+https://tech.bio-stream.ca/
 ```
 
 ## Docker
@@ -78,8 +86,8 @@ https://gsap.bio-stream.ca/
 The container builds the Angular app and serves the static output on port `4000`.
 
 ```bash
-docker build -t biostreamdiag.azurecr.io/whiskey:1.0.0.5 .
-docker push biostreamdiag.azurecr.io/whiskey:1.0.0.5
+docker build -t biostreamdiag.azurecr.io/whiskey:1.0.0.7 .
+docker push biostreamdiag.azurecr.io/whiskey:1.0.0.7
 ```
 
 ## AKS Environments
@@ -92,14 +100,14 @@ aks-deploy/Whiskey/
 
 Current environment hosts:
 
-- Development: `https://gsap.dev.bio-stream.ca`
-- Test/UAT: `https://gsap.test.bio-stream.ca`
-- Production: `https://gsap.bio-stream.ca`
+- Development: `https://tech.dev.bio-stream.ca`
+- Test/UAT: `https://tech.test.bio-stream.ca`
+- Production: `https://tech.bio-stream.ca`
 
 The manifests deploy the same image:
 
 ```txt
-biostreamdiag.azurecr.io/whiskey:1.0.0.5
+biostreamdiag.azurecr.io/whiskey:1.0.0.7
 ```
 
 ## Repository

@@ -70,3 +70,22 @@ body {
   .reader-hero .sensor-cta a, .reader-hero .marketplace-buy, .reader-hero .marketplace-buy::before { animation: none; }
   .reader-hero .button-ripple::after { transition: none; }
 }
+
+// The blackout never intercepts input: visitors can take over even during a reset.
+.demo-blackout {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.reader-copy .reader-headline.demo-headline {
+  font-size: calc(var(--headline-size, var(--intro-headline)) * 0.72);
+}
+.reader-copy p.diagnostic-phrases.demo-description {
+  max-width: min(32rem, 100%);
+  font-size: clamp(1rem, calc(var(--intro-body) * 0.72), 1.65rem);
+  white-space: normal;
+}
